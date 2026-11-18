@@ -1,0 +1,605 @@
+{
+  "id": "sample-with-issues",
+  "companyName": "카페 소라결(성수)",
+  "companyCode": "JB-1148",
+  "payPeriod": "2026-11",
+  "sourceFile": "카페소라결_급여대장_2026-11.csv",
+  "unit": "원",
+  "employees": [
+    {
+      "id": "w-1",
+      "name": "하현빈",
+      "employmentType": "정규",
+      "position": "매니저",
+      "match": {
+        "memberId": "231349",
+        "phone": "010-0000-9775",
+        "email": "nsfu46@example.net",
+        "kakaoConsent": false,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "기본급",
+          "category": "기본급",
+          "amount": 2800000,
+          "source": {
+            "cell": "H2"
+          }
+        },
+        {
+          "label": "식대",
+          "category": "식대",
+          "amount": 200000,
+          "taxFree": true,
+          "source": {
+            "cell": "K2"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 133000,
+          "source": {
+            "cell": "O2"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 100660,
+          "source": {
+            "cell": "P2"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 13220,
+          "source": {
+            "cell": "Q2"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 25190,
+          "source": {
+            "cell": "R2"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 47600,
+          "source": {
+            "cell": "S2"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 4760,
+          "source": {
+            "cell": "T2"
+          }
+        }
+      ],
+      "totalEarnings": 3000000,
+      "totalDeductions": 324430,
+      "netPay": 2675570,
+      "issues": [
+        {
+          "level": "warning",
+          "code": "NO_CONSENT",
+          "message": "알림톡 수신에 동의하지 않은 직원이에요. 이메일로 보내거나 발송에서 빼 주세요.",
+          "field": "match.kakaoConsent"
+        }
+      ]
+    },
+    {
+      "id": "w-2",
+      "name": "김영우",
+      "employmentType": "정규",
+      "position": "바리스타",
+      "match": {
+        "memberId": "231377",
+        "phone": "010-0000-8997",
+        "email": "fpyf98@example.net",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "기본급",
+          "category": "기본급",
+          "amount": 2400000,
+          "source": {
+            "cell": "H3"
+          }
+        },
+        {
+          "label": "연장근로수당",
+          "category": "연장근로수당",
+          "amount": 180000,
+          "source": {
+            "cell": "I3"
+          }
+        },
+        {
+          "label": "식대",
+          "category": "식대",
+          "amount": 200000,
+          "taxFree": true,
+          "source": {
+            "cell": "K3"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 122550,
+          "source": {
+            "cell": "O3"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 92750,
+          "source": {
+            "cell": "P3"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 12180,
+          "source": {
+            "cell": "Q3"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 23220,
+          "source": {
+            "cell": "R3"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 43860,
+          "source": {
+            "cell": "S3"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 4380,
+          "source": {
+            "cell": "T3"
+          }
+        }
+      ],
+      "totalEarnings": 2790000,
+      "totalDeductions": 298940,
+      "netPay": 2491060,
+      "workInfo": {
+        "overtimeHours": 8
+      },
+      "issues": [
+        {
+          "level": "error",
+          "code": "SUM_MISMATCH",
+          "message": "지급 항목을 더하면 2,780,000원인데 원본 지급합계는 2,790,000원이에요. 빠진 항목이나 잘못 읽은 금액이 있는지 확인해 주세요.",
+          "field": "totalEarnings"
+        }
+      ]
+    },
+    {
+      "id": "w-3",
+      "name": "윤동우",
+      "employmentType": "시급",
+      "match": {
+        "memberId": "231393",
+        "phone": "010-0000-4222",
+        "email": "pwktfl32@example.com",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "시급제 급여",
+          "category": "기본급",
+          "amount": 1540000,
+          "source": {
+            "cell": "H4"
+          }
+        },
+        {
+          "label": "주휴수당",
+          "category": "주휴수당",
+          "amount": 308000,
+          "source": {
+            "cell": "J4"
+          }
+        },
+        {
+          "label": "교통비지원",
+          "category": "기타지급",
+          "amount": 50000,
+          "source": {
+            "cell": "M4"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 90150,
+          "source": {
+            "cell": "O4"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 68230,
+          "source": {
+            "cell": "P4"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 8960,
+          "source": {
+            "cell": "Q4"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 17080,
+          "source": {
+            "cell": "R4"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 32260,
+          "source": {
+            "cell": "S4"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 3220,
+          "source": {
+            "cell": "T4"
+          }
+        }
+      ],
+      "totalEarnings": 1898000,
+      "totalDeductions": 219900,
+      "netPay": 1678200,
+      "workInfo": {
+        "workHours": 140,
+        "hourlyWage": 11000
+      },
+      "issues": [
+        {
+          "level": "warning",
+          "code": "UNKNOWN_ITEM",
+          "message": "'교통비지원'을 표준 항목으로 분류하지 못해 '기타지급'으로 넣었어요. 맞는지 확인해 주세요.",
+          "field": "earnings.2"
+        },
+        {
+          "level": "error",
+          "code": "NET_MISMATCH",
+          "message": "지급합계에서 공제합계를 빼면 실지급액과 100원이 달라요. 원본 실지급액을 확인해 주세요.",
+          "field": "netPay"
+        }
+      ]
+    },
+    {
+      "id": "w-4",
+      "name": "류연윤",
+      "employmentType": "정규",
+      "position": "바리스타",
+      "match": {
+        "memberId": "231431",
+        "phone": "010-0000-8129",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "기본급",
+          "category": "기본급",
+          "amount": 2300000,
+          "source": {
+            "cell": "H5"
+          }
+        },
+        {
+          "label": "식대",
+          "category": "식대",
+          "amount": 200000,
+          "taxFree": true,
+          "source": {
+            "cell": "K5"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 10920,
+          "source": {
+            "cell": "N5"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 82680,
+          "source": {
+            "cell": "P5"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 10860,
+          "source": {
+            "cell": "Q5"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 20700,
+          "source": {
+            "cell": "R5"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 39100,
+          "source": {
+            "cell": "S5"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 3910,
+          "source": {
+            "cell": "T5"
+          }
+        }
+      ],
+      "totalEarnings": 2500000,
+      "totalDeductions": 168170,
+      "netPay": 2331830,
+      "issues": [
+        {
+          "level": "warning",
+          "code": "RATE_OUT_OF_RANGE",
+          "message": "국민연금이 과세 지급액의 0.5% 정도예요. 보통 4.75%라서 다른 칸을 읽었을 수 있어요.",
+          "field": "deductions.0"
+        },
+        {
+          "level": "info",
+          "code": "LOW_CONFIDENCE",
+          "message": "AI가 국민연금 열을 확신하지 못했어요(확신도 낮음).",
+          "field": "deductions.0"
+        }
+      ]
+    },
+    {
+      "id": "w-5",
+      "name": "민하석",
+      "employmentType": "시급",
+      "match": {
+        "memberId": "231527",
+        "phone": "010-0000-8025",
+        "email": "nrdafm52@example.org",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "시급제 급여",
+          "category": "기본급",
+          "amount": 1100000,
+          "source": {
+            "cell": "H6"
+          }
+        },
+        {
+          "label": "주휴수당",
+          "category": "주휴수당",
+          "amount": 220000,
+          "source": {
+            "cell": "J6"
+          },
+          "edited": {
+            "before": 202000,
+            "by": "user"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 62700,
+          "source": {
+            "cell": "O6"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 47450,
+          "source": {
+            "cell": "P6"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 6230,
+          "source": {
+            "cell": "Q6"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 11880,
+          "source": {
+            "cell": "R6"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 5280,
+          "source": {
+            "cell": "S6"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 520,
+          "source": {
+            "cell": "T6"
+          }
+        }
+      ],
+      "totalEarnings": 1320000,
+      "totalDeductions": 134060,
+      "netPay": 1185940,
+      "workInfo": {
+        "workHours": 100,
+        "hourlyWage": 11000
+      },
+      "issues": []
+    },
+    {
+      "id": "w-6",
+      "name": "정다온",
+      "employmentType": "시급",
+      "earnings": [
+        {
+          "label": "시급제 급여",
+          "category": "기본급",
+          "amount": 880000,
+          "source": {
+            "cell": "H7"
+          }
+        },
+        {
+          "label": "주휴수당",
+          "category": "주휴수당",
+          "amount": 176000,
+          "source": {
+            "cell": "J7"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 50160,
+          "source": {
+            "cell": "O7"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 37960,
+          "source": {
+            "cell": "P7"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 4980,
+          "source": {
+            "cell": "Q7"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 9500,
+          "source": {
+            "cell": "R7"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 4220,
+          "source": {
+            "cell": "S7"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 420,
+          "source": {
+            "cell": "T7"
+          }
+        }
+      ],
+      "totalEarnings": 1056000,
+      "totalDeductions": 107240,
+      "netPay": 948760,
+      "workInfo": {
+        "workHours": 80,
+        "hourlyWage": 11000
+      },
+      "issues": [
+        {
+          "level": "warning",
+          "code": "MATCH_NOT_FOUND",
+          "message": "자버 직원연락처에서 '정다온'님을 찾지 못했어요. 직원을 선택하거나 등록해 주세요.",
+          "field": "match"
+        }
+      ],
+      "match": {
+        "status": "not_found"
+      }
+    }
+  ],
+  "issues": [
+    {
+      "level": "warning",
+      "code": "NO_PAY_DATE",
+      "message": "파일에서 지급일을 찾지 못했어요. 명세서에 넣을 지급일을 입력해 주세요.",
+      "field": "payDate"
+    }
+  ]
+}
