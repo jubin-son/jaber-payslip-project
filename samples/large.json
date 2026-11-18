@@ -1,0 +1,1144 @@
+{
+  "id": "sample-large",
+  "companyName": "책여울 스터디카페",
+  "companyCode": "JB-1333",
+  "payPeriod": "2026-11",
+  "payDate": "2026-12-05",
+  "sourceFile": "책여울스터디카페_급여대장_11월_최종_수정2.xlsx",
+  "sourceSheet": "11월 급여(수정2)",
+  "unit": "원",
+  "employees": [
+    {
+      "id": "l-1",
+      "name": "신하림",
+      "employmentType": "정규",
+      "match": {
+        "memberId": "231586",
+        "phone": "010-0000-2787",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "기본급",
+          "category": "기본급",
+          "amount": 2500000,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H4"
+          }
+        },
+        {
+          "label": "식대",
+          "category": "식대",
+          "amount": 200000,
+          "taxFree": true,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "K4"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 118750,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O4"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 89870,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P4"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 11800,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q4"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 22500,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R4"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 42500,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S4"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 4250,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T4"
+          }
+        }
+      ],
+      "totalEarnings": 2700000,
+      "totalDeductions": 289670,
+      "netPay": 2410330,
+      "workInfo": {
+        "workDays": 22
+      },
+      "issues": []
+    },
+    {
+      "id": "l-2",
+      "name": "조상은",
+      "employmentType": "정규",
+      "match": {
+        "memberId": "231598",
+        "phone": "010-0000-6511",
+        "email": "tordbj29@example.net",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "기본급",
+          "category": "기본급",
+          "amount": 2350000,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H5"
+          }
+        },
+        {
+          "label": "식대",
+          "category": "식대",
+          "amount": 200000,
+          "taxFree": true,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "K5"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 111620,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O5"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 84480,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P5"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 11100,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q5"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 21150,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R5"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 39950,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S5"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 3990,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T5"
+          }
+        }
+      ],
+      "totalEarnings": 2550000,
+      "totalDeductions": 272290,
+      "netPay": 2277710,
+      "workInfo": {
+        "workDays": 22
+      },
+      "issues": []
+    },
+    {
+      "id": "l-3",
+      "name": "홍유찬",
+      "employmentType": "시급",
+      "match": {
+        "memberId": "231629",
+        "phone": "010-0000-7573",
+        "email": "hsjwgv38@example.net",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 990720,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H6"
+          }
+        },
+        {
+          "label": "주휴수당",
+          "category": "주휴수당",
+          "amount": 198140,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "J6"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 56470,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O6"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 42730,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P6"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 5610,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q6"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 10690,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R6"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 4750,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S6"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 470,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T6"
+          }
+        }
+      ],
+      "totalEarnings": 1188860,
+      "totalDeductions": 120720,
+      "netPay": 1068140,
+      "workInfo": {
+        "workHours": 96,
+        "hourlyWage": 10320
+      },
+      "issues": []
+    },
+    {
+      "id": "l-4",
+      "name": "금연준",
+      "employmentType": "시급",
+      "match": {
+        "memberId": "231762",
+        "phone": "010-0000-5648",
+        "email": "wnnsac21@example.net",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 743040,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H7"
+          }
+        },
+        {
+          "label": "주휴수당",
+          "category": "주휴수당",
+          "amount": 148600,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "J7"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 42350,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O7"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 32050,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P7"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 4210,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q7"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 8020,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R7"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 3560,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S7"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 350,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T7"
+          }
+        }
+      ],
+      "totalEarnings": 891640,
+      "totalDeductions": 90540,
+      "netPay": 801100,
+      "workInfo": {
+        "workHours": 72,
+        "hourlyWage": 10320
+      },
+      "issues": []
+    },
+    {
+      "id": "l-5",
+      "name": "홍유찬",
+      "employmentType": "시급",
+      "match": {
+        "status": "ambiguous",
+        "candidates": [
+          "231629",
+          "231769"
+        ]
+      },
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 619200,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H8"
+          }
+        },
+        {
+          "label": "주휴수당",
+          "category": "주휴수당",
+          "amount": 123840,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "J8"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 35290,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O8"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 26710,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P8"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 3500,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q8"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 6680,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R8"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 2970,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S8"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 290,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T8"
+          }
+        }
+      ],
+      "totalEarnings": 743040,
+      "totalDeductions": 75440,
+      "netPay": 667600,
+      "workInfo": {
+        "workHours": 60,
+        "hourlyWage": 10320
+      },
+      "issues": [
+        {
+          "level": "warning",
+          "code": "MATCH_AMBIGUOUS",
+          "message": "자버에 '홍유찬'님이 두 명 있어요(회원번호 231629, 231769). 누구인지 골라 주세요.",
+          "field": "match"
+        }
+      ]
+    },
+    {
+      "id": "l-6",
+      "name": "김시희",
+      "employmentType": "시급",
+      "match": {
+        "memberId": "231877",
+        "phone": "010-0000-5687",
+        "email": "hnppm29@example.org",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 908160,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H9"
+          }
+        },
+        {
+          "label": "주휴수당",
+          "category": "주휴수당",
+          "amount": 181630,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "J9"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 51760,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O9"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 39170,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P9"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 5140,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q9"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 9800,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R9"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 4350,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S9"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 430,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T9"
+          }
+        }
+      ],
+      "totalEarnings": 1089790,
+      "totalDeductions": 110650,
+      "netPay": 979140,
+      "workInfo": {
+        "workHours": 88,
+        "hourlyWage": 10320
+      },
+      "issues": []
+    },
+    {
+      "id": "l-7",
+      "name": "이도윤",
+      "employmentType": "시급",
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 660480,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H10"
+          }
+        },
+        {
+          "label": "주휴수당",
+          "category": "주휴수당",
+          "amount": 132090,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "J10"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 37640,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O10"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 28490,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P10"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 3740,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q10"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 7130,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R10"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 3170,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S10"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 310,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T10"
+          }
+        }
+      ],
+      "totalEarnings": 792570,
+      "totalDeductions": 80480,
+      "netPay": 712090,
+      "workInfo": {
+        "workHours": 64,
+        "hourlyWage": 10320
+      },
+      "issues": [
+        {
+          "level": "warning",
+          "code": "MATCH_NOT_FOUND",
+          "message": "자버 직원연락처에서 '이도윤'님을 찾지 못했어요. 직원을 선택하거나 등록해 주세요.",
+          "field": "match"
+        }
+      ],
+      "match": {
+        "status": "not_found"
+      }
+    },
+    {
+      "id": "l-8",
+      "name": "박서연",
+      "employmentType": "시급",
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 577920,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H11"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 27450,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O11"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 20770,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P11"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 2720,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q11"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 5200,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R11"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 2310,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S11"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 230,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T11"
+          }
+        }
+      ],
+      "totalEarnings": 577920,
+      "totalDeductions": 58680,
+      "netPay": 519240,
+      "workInfo": {
+        "workHours": 56,
+        "hourlyWage": 10320
+      },
+      "issues": [
+        {
+          "level": "warning",
+          "code": "MATCH_NOT_FOUND",
+          "message": "자버 직원연락처에서 '박서연'님을 찾지 못했어요. 직원을 선택하거나 등록해 주세요.",
+          "field": "match"
+        }
+      ],
+      "match": {
+        "status": "not_found"
+      }
+    },
+    {
+      "id": "l-9",
+      "name": "최지안",
+      "employmentType": "시급",
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 495360,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H12"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 23520,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O12"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 17800,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P12"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 2330,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q12"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 4450,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R12"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 1980,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S12"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 190,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T12"
+          }
+        }
+      ],
+      "totalEarnings": 495360,
+      "totalDeductions": 50270,
+      "netPay": 445090,
+      "workInfo": {
+        "workHours": 48,
+        "hourlyWage": 10320
+      },
+      "issues": [
+        {
+          "level": "warning",
+          "code": "MATCH_NOT_FOUND",
+          "message": "자버 직원연락처에서 '최지안'님을 찾지 못했어요. 직원을 선택하거나 등록해 주세요.",
+          "field": "match"
+        }
+      ],
+      "match": {
+        "status": "not_found"
+      }
+    },
+    {
+      "id": "l-10",
+      "name": "정우진",
+      "employmentType": "시급",
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 412800,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H13"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 19600,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O13"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 14840,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P13"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 1940,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q13"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 3710,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R13"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 1650,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S13"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 160,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T13"
+          }
+        }
+      ],
+      "totalEarnings": 412800,
+      "totalDeductions": 41900,
+      "netPay": 370900,
+      "workInfo": {
+        "workHours": 40,
+        "hourlyWage": 10320
+      },
+      "issues": [
+        {
+          "level": "warning",
+          "code": "MATCH_NOT_FOUND",
+          "message": "자버 직원연락처에서 '정우진'님을 찾지 못했어요. 직원을 선택하거나 등록해 주세요.",
+          "field": "match"
+        }
+      ],
+      "match": {
+        "status": "not_found"
+      }
+    },
+    {
+      "id": "l-11",
+      "name": "한소율",
+      "employmentType": "시급",
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 536640,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H14"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 25490,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O14"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 19290,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P14"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 2530,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q14"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 4820,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R14"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 2140,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S14"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 210,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T14"
+          }
+        }
+      ],
+      "totalEarnings": 536640,
+      "totalDeductions": 54480,
+      "netPay": 482160,
+      "workInfo": {
+        "workHours": 52,
+        "hourlyWage": 10320
+      },
+      "issues": [
+        {
+          "level": "warning",
+          "code": "MATCH_NOT_FOUND",
+          "message": "자버 직원연락처에서 '한소율'님을 찾지 못했어요. 직원을 선택하거나 등록해 주세요.",
+          "field": "match"
+        }
+      ],
+      "match": {
+        "status": "not_found"
+      }
+    },
+    {
+      "id": "l-12",
+      "name": "오하람",
+      "employmentType": "시급",
+      "earnings": [
+        {
+          "label": "시급",
+          "category": "기본급",
+          "amount": 454080,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "H15"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 21560,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "O15"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 16320,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "P15"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 2140,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "Q15"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 4080,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "R15"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 1810,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "S15"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 180,
+          "source": {
+            "sheet": "11월 급여(수정2)",
+            "cell": "T15"
+          }
+        }
+      ],
+      "totalEarnings": 454080,
+      "totalDeductions": 46090,
+      "netPay": 407990,
+      "workInfo": {
+        "workHours": 44,
+        "hourlyWage": 10320
+      },
+      "issues": [
+        {
+          "level": "warning",
+          "code": "MATCH_NOT_FOUND",
+          "message": "자버 직원연락처에서 '오하람'님을 찾지 못했어요. 직원을 선택하거나 등록해 주세요.",
+          "field": "match"
+        }
+      ],
+      "match": {
+        "status": "not_found"
+      }
+    }
+  ],
+  "issues": []
+}

@@ -1,0 +1,373 @@
+{
+  "id": "sample-normal",
+  "companyName": "새하얀결세탁소",
+  "companyCode": "JB-1296",
+  "payPeriod": "2026-11",
+  "payDate": "2026-12-10",
+  "sourceFile": "새하얀결세탁소_2026.11_급여대장.xlsx",
+  "sourceSheet": "2026.11",
+  "unit": "원",
+  "employees": [
+    {
+      "id": "n-1",
+      "name": "박재훈",
+      "employmentType": "정규",
+      "position": "세탁",
+      "match": {
+        "memberId": "230934",
+        "phone": "010-0000-7355",
+        "email": "nkjvtkd70@example.com",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "기본급",
+          "category": "기본급",
+          "amount": 2660000,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "H3"
+          }
+        },
+        {
+          "label": "식대",
+          "category": "식대",
+          "amount": 200000,
+          "taxFree": true,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "K3"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 126350,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "O3"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 95620,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "P3"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 12560,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "Q3"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 23940,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "R3"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 45220,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "S3"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 4520,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "T3"
+          }
+        }
+      ],
+      "totalEarnings": 2860000,
+      "totalDeductions": 308210,
+      "netPay": 2551790,
+      "workInfo": {
+        "workDays": 30
+      },
+      "issues": []
+    },
+    {
+      "id": "n-2",
+      "name": "류지결",
+      "employmentType": "정규",
+      "position": "카운터",
+      "match": {
+        "memberId": "230902",
+        "phone": "010-0000-9759",
+        "email": "lwbb78@example.org",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "기본급",
+          "category": "기본급",
+          "amount": 3170000,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "H4"
+          }
+        },
+        {
+          "label": "연장근로수당",
+          "category": "연장근로수당",
+          "amount": 204750,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "I4"
+          }
+        },
+        {
+          "label": "식대",
+          "category": "식대",
+          "amount": 200000,
+          "taxFree": true,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "K4"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 160300,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "O4"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 121320,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "P4"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 15940,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "Q4"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 30370,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "R4"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 104610,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "S4"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 10460,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "T4"
+          }
+        }
+      ],
+      "totalEarnings": 3574750,
+      "totalDeductions": 443000,
+      "netPay": 3131750,
+      "workInfo": {
+        "workDays": 30,
+        "overtimeHours": 9
+      },
+      "issues": []
+    },
+    {
+      "id": "n-3",
+      "name": "방서솔",
+      "employmentType": "정규",
+      "position": "수선",
+      "match": {
+        "memberId": "230866",
+        "phone": "010-0000-6028",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "기본급",
+          "category": "기본급",
+          "amount": 2970000,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "H5"
+          }
+        },
+        {
+          "label": "식대",
+          "category": "식대",
+          "amount": 200000,
+          "taxFree": true,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "K5"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "국민연금",
+          "category": "국민연금",
+          "amount": 141070,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "O5"
+          }
+        },
+        {
+          "label": "건강보험",
+          "category": "건강보험",
+          "amount": 106770,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "P5"
+          }
+        },
+        {
+          "label": "장기요양보험",
+          "category": "장기요양보험",
+          "amount": 14020,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "Q5"
+          }
+        },
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 26720,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "R5"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 50490,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "S5"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 5040,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "T5"
+          }
+        }
+      ],
+      "totalEarnings": 3170000,
+      "totalDeductions": 344110,
+      "netPay": 2825890,
+      "workInfo": {
+        "workDays": 30
+      },
+      "issues": []
+    },
+    {
+      "id": "n-4",
+      "name": "전영민",
+      "employmentType": "정규",
+      "position": "세탁",
+      "match": {
+        "memberId": "231974",
+        "phone": "010-0000-3961",
+        "email": "pjwg27@example.org",
+        "kakaoConsent": true,
+        "status": "matched"
+      },
+      "earnings": [
+        {
+          "label": "기본급",
+          "category": "기본급",
+          "amount": 1278660,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "H6"
+          }
+        }
+      ],
+      "deductions": [
+        {
+          "label": "고용보험",
+          "category": "고용보험",
+          "amount": 11500,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "R6"
+          }
+        },
+        {
+          "label": "소득세",
+          "category": "소득세",
+          "amount": 5110,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "S6"
+          }
+        },
+        {
+          "label": "지방소득세",
+          "category": "지방소득세",
+          "amount": 510,
+          "source": {
+            "sheet": "2026.11",
+            "cell": "T6"
+          }
+        }
+      ],
+      "totalEarnings": 1278660,
+      "totalDeductions": 17120,
+      "netPay": 1261540,
+      "workInfo": {
+        "workDays": 14
+      },
+      "issues": []
+    }
+  ],
+  "issues": []
+}
