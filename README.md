@@ -49,7 +49,9 @@ samples/              화면 개발용 샘플 JSON
 
 ## 작업 규칙
 
-- `main`에 직접 올리지 않는다. 작업마다 브랜치를 만들고 PR로 상대가 확인한 뒤 merge한다.
+- `main`에 직접 올리지 않는다. 작업마다 브랜치를 만들고 PR로 merge한다.
+- 내 담당 폴더만 바꾼 PR은 승인 없이 바로 merge해도 된다. 상대 폴더를 건드렸으면 먼저 말한다.
+- `src/types/payroll.ts`(스키마)와 `.github/CODEOWNERS`가 바뀐 PR은 **상대 승인이 있어야 merge된다** (GitHub 규칙으로 강제).
 - 브랜치 이름: `feat/…`, `fix/…`, `design/…`
 - `src/types/payroll.ts`를 바꾸면 노션 스키마 페이지의 변경 기록에도 한 줄 적는다.
 - API 키는 `.env.local`에만 둔다. 커밋하지 않는다.
