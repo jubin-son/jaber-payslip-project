@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { readFile, type RawFile, type RawSheet } from "@/lib/parser/read-file";
+import { extractFiles } from "@/lib/parser/extract";
+import { saveParseResult } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +19,7 @@ export function UploadClient() {
   const [items, setItems] = useState<Item[]>([]);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
     const list = Array.from(files);
@@ -82,8 +86,15 @@ export function UploadClient() {
             <Button variant="outline" size="sm" onClick={() => setItems([])}>
               모두 지우기
             </Button>
-            <Button size="sm" disabled title="2단계(AI 정리)를 만든 뒤 켜져요">
-              AI로 정리하기
+            <Button
+              size="sm"
+              disabled={done.length === 0 || done.length !== items.length}
+              onClick={() => {
+                saveParseResult(extractFiles(done.map((i) => i.file!)));
+                router.push("/organize");
+              }}
+            >
+              AI로 정리하기 →
             </Button>
           </div>
         </div>
