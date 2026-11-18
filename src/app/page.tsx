@@ -3,7 +3,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 
 const steps = [
   { href: "/upload", step: "1", title: "급여대장 업로드", owner: "주빈" },
-  { href: "/review", step: "2·3", title: "AI 정리 결과 확인·수정", owner: "현지" },
+  { href: "/review", step: "2·3", title: "AI 정리 결과 확인·수정", owner: "주빈" },
   { href: "/payslips", step: "4", title: "직원별 급여명세서", owner: "현지" },
   { href: "/send", step: "5", title: "발송", owner: "현지" },
 ];

@@ -25,7 +25,7 @@ npm run dev
 | 경로 | 내용 | 담당 |
 |---|---|---|
 | `/upload` | 급여대장 업로드 | 주빈 |
-| `/review` | AI 정리 결과 확인·수정 | 현지 |
+| `/review` | AI 정리 결과 확인·수정 | 주빈 |
 | `/payslips` | 직원별 급여명세서 목록 | 현지 |
 | `/send` | 발송(알림톡 미리보기) | 현지 |
 | `/p/[id]` | 직원이 링크로 여는 모바일 명세서 | 현지 |
@@ -35,7 +35,7 @@ npm run dev
 ```
 src/
   app/upload/         주빈
-  app/review/         현지
+  app/review/         주빈
   app/payslips/       현지
   app/send/           현지
   app/p/[id]/         현지
