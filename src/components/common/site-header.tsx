@@ -5,14 +5,14 @@ import { usePathname } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 
 export const STEPS = [
+  // AI 정리(/organize)는 화면에 보여주지 않고 '명세서 변환하기' 안에서 돈다
   { href: "/upload", no: 1, label: "업로드" },
-  { href: "/organize", no: 2, label: "AI 정리" },
-  { href: "/review", no: 3, label: "확인·수정" },
-  { href: "/payslips", no: 4, label: "명세서" },
-  { href: "/send", no: 5, label: "발송" },
+  { href: "/review", no: 2, label: "확인·수정" },
+  { href: "/payslips", no: 3, label: "명세서" },
+  { href: "/send", no: 4, label: "발송" },
 ];
 
-// 모든 관리자 화면 공통 상단 바. 홈에서는 '시작하기', 단계 화면에서는 1~5단계 이동을 보여준다.
+// 모든 관리자 화면 공통 상단 바. 홈에서는 '시작하기', 단계 화면에서는 1~4단계 이동을 보여준다.
 export function SiteHeader() {
   const pathname = usePathname();
   const current = STEPS.find((s) => pathname.startsWith(s.href));

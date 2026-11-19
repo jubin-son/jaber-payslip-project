@@ -4,15 +4,15 @@ type Props = {
   step: string;
   title: string;
   description: React.ReactNode;
-  /** 내용 너비. 표가 넓은 화면은 wide */
-  width?: "default" | "wide";
+  /** 내용 너비. 표가 넓은 화면은 wide, 여러 칸을 나란히 쓰는 화면은 full */
+  width?: "default" | "wide" | "full";
   children: React.ReactNode;
 };
 
 // 단계 화면 공통 틀: 상단 바 + 제목 영역 + 회색 바탕의 내용 영역 + 바닥글.
 // 각 화면은 page.tsx에서 이 틀로 감싸고, 실제 기능은 children(…-client.tsx)에 둔다.
 export function PageShell({ step, title, description, width = "default", children }: Props) {
-  const max = width === "wide" ? "max-w-6xl" : "max-w-5xl";
+  const max = width === "full" ? "max-w-[1600px]" : width === "wide" ? "max-w-6xl" : "max-w-5xl";
   return (
     <div className="flex min-h-screen flex-col bg-neutral-50 text-neutral-900 print:bg-white">
       <SiteHeader />

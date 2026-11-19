@@ -1,6 +1,7 @@
 "use client";
-// 3단계: 담당자 확인·수정 화면.
-// 1~2단계에서 올려 정리한 결과(src/lib/store.ts)를 읽어 보여준다. 올린 파일이 없으면 안내만 보여준다.
+// 2단계(화면 기준): 급여명세서 확인·수정 화면.
+// 업로드에서 '명세서 변환하기'로 정리한 결과(src/lib/store.ts)를 읽어 보여준다. 올린 파일이 없으면 안내만 보여준다.
+// 구성: 맨 위 숫자 오류 의심 안내 · 왼쪽 직원 목록 · 가운데 명세서에 들어갈 내용(수정) · 오른쪽 명세서 미리보기(바로 반영)
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useParseResult } from "@/lib/store";
@@ -28,6 +29,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PayslipCard } from "@/app/payslips/payslip-card";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
 // ---------- 작은 도우미 ----------
 
@@ -142,7 +145,7 @@ function EmptyState() {
     <Card>
       <CardHeader>
         <CardTitle>아직 확인할 파일이 없어요</CardTitle>
-        <CardDescription>1단계에서 급여대장을 올리고 &lsquo;AI로 정리하기&rsquo;를 누르면, 여기서 결과를 확인하고 고칠 수 있어요.</CardDescription>
+        <CardDescription>급여대장을 올리고 &lsquo;명세서 변환하기&rsquo;를 누르면, 여기서 직원별 명세서 내용을 확인하고 고칠 수 있어요.</CardDescription>
       </CardHeader>
       <CardContent>
         <Button asChild>
@@ -158,8 +161,6 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
   const batch: PayrollBatch = batches[state.activeBatch] ?? batches[0];
   const confirmed = new Set(state.confirmed);
   const selected = batch?.employees.find((e) => e.id === state.selectedId) ?? batch?.employees[0];
-  const all = batch ? [...batch.issues, ...batch.employees.flatMap((e) => e.issues)] : [];
-  const errorCount = count(all, "error");
   /** 파일 전체(모든 사업장·귀속월)의 오류. 다음 단계로 가려면 0이어야 한다 */
   const totalErrors = batches.reduce(
     (n, b) => n + count([...b.issues, ...b.employees.flatMap((e) => e.issues)], "error"),
@@ -167,32 +168,27 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
   );
   const editsOf = (e: EmployeePay) =>
     [...e.earnings, ...e.deductions].filter((i) => i.edited).length + Object.keys(totalsBefore[e.id] ?? {}).length;
-  const editedCount = batch ? batch.employees.reduce((n, e) => n + editsOf(e), 0) : 0;
 
-  /** 이 사업장에서 확인 완료한 직원 수 (다른 사업장 직원은 세지 않는다) */
-  const confirmedHere = batch ? batch.employees.filter((e) => confirmed.has(e.id)).length : 0;
   /** 한꺼번에 확인 완료할 수 있는 직원: 오류도 확인 필요도 없는 사람만. 문제가 있는 직원은 직접 보고 확인한다 */
   const clean = (e: EmployeePay) => !e.issues.some((i) => i.level === "error" || i.level === "warning");
-  const bulkTargets = batch ? batch.employees.filter((e) => !confirmed.has(e.id) && clean(e)) : [];
-  const needLook = batch ? batch.employees.filter((e) => !confirmed.has(e.id) && !clean(e)).length : 0;
+  const everyone = batches.flatMap((b) => b.employees);
+  const bulkTargets = everyone.filter((e) => !confirmed.has(e.id) && clean(e));
+  const confirmedAll = everyone.filter((e) => confirmed.has(e.id)).length;
 
   function confirmAllClean() {
     const ids = bulkTargets.map((e) => e.id);
     updateReview((s) => ({ ...s, confirmed: [...new Set([...s.confirmed, ...ids])] }));
   }
 
-  function unconfirmAll() {
-    const ids = new Set(batch.employees.map((e) => e.id));
-    updateReview((s) => ({ ...s, confirmed: s.confirmed.filter((c) => !ids.has(c)) }));
-  }
 
   function resetAll() {
     if (history.length > 0 && !window.confirm("지금까지 고친 내용과 수정 기록이 모두 지워져요. 계속할까요?")) return;
     resetReview(result);
   }
 
-  function setActiveBatch(i: number) {
-    updateReview((s) => ({ ...s, activeBatch: i, selectedId: s.batches[i]?.employees[0]?.id ?? "" }));
+  /** 왼쪽 목록에서 직원 고르기 (다른 사업장 직원이면 그 사업장으로 바꾼다) */
+  function selectEmployee(batchIndex: number, id: string) {
+    updateReview((s) => ({ ...s, activeBatch: batchIndex, selectedId: id }));
   }
 
   /** 직원 한 명을 고치고, 다시 검산하고, 수정 기록을 남긴다 */
@@ -303,9 +299,6 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
     });
   }
 
-  function setSelectedId(id: string) {
-    updateReview((s) => ({ ...s, selectedId: id }));
-  }
 
   function toggleConfirmed(id: string) {
     updateReview((s) => ({
@@ -319,138 +312,118 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* 사업장·귀속월이 여러 개면 고르기 */}
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        {batches.length > 1 && (
-          <>
-            <span className="text-muted-foreground">사업장·귀속월</span>
-            {batches.map((b, i) => {
-              const lv = worst([...b.issues, ...b.employees.flatMap((e) => e.issues)]);
-              return (
-                <Button key={b.id} size="sm" variant={i === state.activeBatch ? "default" : "outline"} onClick={() => setActiveBatch(i)}>
-                  {lv && <span aria-hidden className={`size-2 rounded-full ${LEVEL_STYLE[lv].dot}`} />}
+    <div className="flex flex-col gap-5">
+      {/* 맨 위: 숫자 오류 의심 내역 */}
+      <SuspectBanner batches={batches} onPick={selectEmployee} />
+
+      <div className="grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_420px]">
+        {/* 왼쪽: 인식한 임직원 목록 */}
+        <aside className="flex flex-col gap-3 lg:sticky lg:top-24">
+          <div className="flex items-baseline justify-between px-1">
+            <h2 className="font-bold">임직원 {everyone.length}명</h2>
+            <span className="text-xs text-muted-foreground">
+              확인 {confirmedAll}/{everyone.length}
+            </span>
+          </div>
+          <nav aria-label="직원 목록" className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto rounded-3xl bg-white p-3 shadow-[0_4px_24px_rgba(0,0,0,0.05)] ring-1 ring-neutral-200/70">
+            {batches.map((b, bi) => (
+              <div key={b.id} className="flex flex-col gap-1">
+                <p className="truncate px-2 pt-1 text-xs font-semibold text-muted-foreground" title={b.sourceFile}>
                   {b.companyName} · {b.payPeriod}
-                </Button>
-              );
-            })}
-          </>
-        )}
-        <Button size="sm" variant="ghost" className="ml-auto" disabled={history.length === 0} onClick={resetAll}>
-          처음 상태로 되돌리기
-        </Button>
-      </div>
-
-      {/* 파일 요약 */}
-      <Card>
-        <CardHeader>
-          <CardDescription>
-            {batch.sourceFile} · 귀속 {batch.payPeriod} · 원본 단위 {batch.unit}
-          </CardDescription>
-          <CardTitle className="text-xl">{batch.companyName}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-            <span>
-              직원 <b>{batch.employees.length}</b>명
-            </span>
-            <span>
-              확인 완료 <b>{confirmedHere}</b>/{batch.employees.length}
-            </span>
-            <span className="text-red-600 dark:text-red-400">
-              오류 <b>{errorCount}</b>
-            </span>
-            <span className="text-amber-600 dark:text-amber-400">
-              확인 필요 <b>{count(all, "warning")}</b>
-            </span>
-            <span className={EDITED_TEXT}>
-              고친 칸 <b>{editedCount}</b>
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Button size="sm" disabled={bulkTargets.length === 0} onClick={confirmAllClean}>
-              문제 없는 직원 모두 확인 완료{bulkTargets.length > 0 ? ` (${bulkTargets.length}명)` : ""}
-            </Button>
-            {confirmedHere > 0 && (
-              <Button size="sm" variant="outline" onClick={unconfirmAll}>
-                확인 모두 취소
-              </Button>
-            )}
-            {needLook > 0 && (
-              <span className="text-muted-foreground">오류·확인 필요가 있는 {needLook}명은 직접 확인해 주세요.</span>
-            )}
-          </div>
-          <label className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="w-14 text-muted-foreground">지급일</span>
-            <input
-              type="date"
-              value={batch.payDate ?? ""}
-              onChange={(e) => setPayDate(e.target.value)}
-              className={`rounded-md border px-2 py-1 ${batch.issues.some((i) => i.field === "payDate") ? LEVEL_STYLE.warning.cell : ""}`}
-            />
-          </label>
-          {batch.issues.length > 0 && <IssueList issues={batch.issues} />}
-          {history.length > 0 && (
-            <details className="text-sm">
-              <summary className={`cursor-pointer ${EDITED_TEXT}`}>수정 기록 전체 보기 ({history.length}건)</summary>
-              <div className="mt-2">
-                <HistoryList history={history} showEmployee />
+                </p>
+                {b.employees.map((e) => {
+                  const lv = worst(e.issues);
+                  const active = e.id === selected.id;
+                  return (
+                    <button
+                      key={e.id}
+                      onClick={() => selectEmployee(bi, e.id)}
+                      aria-current={active ? "true" : undefined}
+                      className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                        active ? "bg-neutral-900 text-white" : "hover:bg-neutral-100"
+                      }`}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span aria-hidden className={`size-2 shrink-0 rounded-full ${lv ? LEVEL_STYLE[lv].dot : "bg-transparent"}`} />
+                        <span className="truncate font-medium">{e.name}</span>
+                        {editsOf(e) > 0 && <EditedTag>수정</EditedTag>}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <span className={`text-xs tabular-nums ${active ? "text-neutral-300" : "text-muted-foreground"}`}>{won(e.netPay)}</span>
+                        {confirmed.has(e.id) && <CheckCircle2 aria-label="확인 완료" className={`size-4 ${active ? "text-white" : "text-indigo-500"}`} />}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            </details>
-          )}
-        </CardContent>
-      </Card>
+            ))}
+          </nav>
+          <Button variant="outline" size="sm" disabled={bulkTargets.length === 0} onClick={confirmAllClean}>
+            문제 없는 직원 모두 확인{bulkTargets.length > 0 ? ` (${bulkTargets.length}명)` : ""}
+          </Button>
+        </aside>
 
-      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-        {/* 직원 목록 */}
-        <nav aria-label="직원 목록" className="flex flex-col gap-1">
-          {batch.employees.map((e) => {
-            const lv = worst(e.issues);
-            const active = e.id === selected.id;
-            return (
-              <button
-                key={e.id}
-                onClick={() => setSelectedId(e.id)}
-                className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                  active ? "border-foreground bg-muted" : "hover:bg-muted"
-                }`}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    aria-hidden
-                    className={`size-2 shrink-0 rounded-full ${lv ? LEVEL_STYLE[lv].dot : "bg-transparent"}`}
-                  />
-                  <span className="truncate font-medium">{e.name}</span>
-                  {e.employmentType && <span className="text-xs text-muted-foreground">{e.employmentType}</span>}
-                  {editsOf(e) > 0 && <EditedTag>수정 {editsOf(e)}</EditedTag>}
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="tabular-nums text-muted-foreground">{won(e.netPay)}</span>
-                  {confirmed.has(e.id) && <span aria-label="확인 완료">✓</span>}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
+        {/* 가운데: 명세서에 들어갈 내용 (수정) */}
+        <section className="flex min-w-0 flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-white px-4 py-3 text-sm ring-1 ring-neutral-200/70">
+            <span className="font-semibold">{batch.companyName}</span>
+            <span className="text-muted-foreground">귀속 {batch.payPeriod}</span>
+            <label className="flex items-center gap-2">
+              <span className="text-muted-foreground">지급일</span>
+              <input
+                type="date"
+                value={batch.payDate ?? ""}
+                onChange={(e) => setPayDate(e.target.value)}
+                className={`rounded-md border px-2 py-1 ${batch.issues.some((i) => i.field === "payDate") ? LEVEL_STYLE.warning.cell : ""}`}
+              />
+            </label>
+            <span className="ml-auto truncate text-xs text-muted-foreground" title={batch.sourceFile}>
+              {batch.sourceFile} · 원본 단위 {batch.unit}
+            </span>
+          </div>
+          {batch.issues.length > 0 && <IssueList issues={batch.issues} />}
 
-        {/* 선택한 직원 */}
-        <EmployeeDetail
-          key={selected.id}
-          e={selected}
-          sourceFile={batch.sourceFile}
-          totalsBefore={totalsBefore[selected.id] ?? {}}
-          history={history.filter((h) => h.employeeId === selected.id)}
-          isConfirmed={confirmed.has(selected.id)}
-          onAmount={setItemAmount}
-          onCategory={setItemCategory}
-          onTotal={setTotal}
-          onToggleConfirmed={() => toggleConfirmed(selected.id)}
-        />
+          <EmployeeDetail
+            key={selected.id}
+            e={selected}
+            sourceFile={batch.sourceFile}
+            totalsBefore={totalsBefore[selected.id] ?? {}}
+            history={history.filter((h) => h.employeeId === selected.id)}
+            isConfirmed={confirmed.has(selected.id)}
+            onAmount={setItemAmount}
+            onCategory={setItemCategory}
+            onTotal={setTotal}
+            onToggleConfirmed={() => toggleConfirmed(selected.id)}
+          />
+
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            {history.length > 0 && (
+              <details className="flex-1">
+                <summary className={`cursor-pointer ${EDITED_TEXT}`}>수정 기록 전체 보기 ({history.length}건)</summary>
+                <div className="mt-2">
+                  <HistoryList history={history} showEmployee />
+                </div>
+              </details>
+            )}
+            <Button size="sm" variant="ghost" className="ml-auto" disabled={history.length === 0} onClick={resetAll}>
+              처음 상태로 되돌리기
+            </Button>
+          </div>
+        </section>
+
+        {/* 오른쪽: 명세서 미리보기 (가운데에서 고치면 바로 바뀐다) */}
+        <aside className="flex min-w-0 flex-col gap-3 lg:col-span-2 xl:sticky xl:top-24 xl:col-span-1">
+          <div className="flex items-baseline justify-between px-1">
+            <h2 className="font-bold">명세서 미리보기</h2>
+            <span className="text-xs text-muted-foreground">고치면 바로 바뀌어요</span>
+          </div>
+          <PayslipCard batch={batch} employee={selected} />
+        </aside>
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
         <p className="text-sm text-muted-foreground">
-          {totalErrors > 0 ? `오류 ${totalErrors}개를 먼저 고쳐 주세요${batches.length > 1 ? " (모든 사업장·귀속월 합계)" : ""}.` : "오류가 없어요. 명세서를 만들 수 있어요."}
+          {totalErrors > 0 ? `오류 ${totalErrors}개를 먼저 고쳐 주세요.` : "오류가 없어요. 명세서를 만들 수 있어요."}
         </p>
         {totalErrors > 0 ? (
           <Button disabled>다음: 명세서 만들기</Button>
@@ -461,6 +434,53 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
         )}
       </div>
     </div>
+  );
+}
+
+// ---------- 숫자 오류 의심 안내 ----------
+
+/** 금액이 맞지 않을 때 생기는 issue (매칭·수신동의·분류 안내는 가운데 직원 화면에서 보여준다) */
+const NUMBER_CODES: Issue["code"][] = ["SUM_MISMATCH", "NET_MISMATCH", "RATE_OUT_OF_RANGE"];
+
+function SuspectBanner({ batches, onPick }: { batches: PayrollBatch[]; onPick: (batchIndex: number, id: string) => void }) {
+  const rows = batches.flatMap((b, bi) =>
+    b.employees.flatMap((e) =>
+      e.issues
+        .filter((i) => NUMBER_CODES.includes(i.code) && i.level !== "info")
+        .map((i, n) => ({ key: `${e.id}-${i.code}-${n}`, bi, e, b, i })),
+    ),
+  );
+  if (rows.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-2xl bg-emerald-50 px-5 py-3 text-sm font-medium text-emerald-800">
+        <CheckCircle2 className="size-4 shrink-0" />
+        숫자 오류가 의심되는 내역이 없어요. 합계와 실지급액이 모두 맞아요.
+      </div>
+    );
+  }
+  return (
+    <section aria-label="숫자 오류 의심 내역" className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-900">
+      <h2 className="flex items-center gap-2 font-bold">
+        <AlertTriangle className="size-4 shrink-0" />
+        숫자 오류가 의심되는 내역 {rows.length}건
+      </h2>
+      <ul className="mt-2 flex flex-col gap-1">
+        {rows.map(({ key, bi, e, b, i }) => (
+          <li key={key}>
+            <button
+              type="button"
+              onClick={() => onPick(bi, e.id)}
+              className="flex w-full flex-wrap items-baseline gap-x-2 rounded-lg px-2 py-1 text-left hover:bg-red-100"
+            >
+              <span className="font-semibold">{e.name}</span>
+              <span className="text-xs text-red-700/80">{b.companyName}</span>
+              <span className="flex-1">{i.message}</span>
+              <span className="text-xs underline underline-offset-2">확인하기</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -501,7 +521,7 @@ function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onA
       <CardContent className="flex flex-col gap-5">
         {e.issues.length > 0 && <IssueList issues={e.issues} onPick={setFocusField} />}
 
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid gap-5 2xl:grid-cols-2">
           <ItemTable
             title="지급"
             group="earnings"

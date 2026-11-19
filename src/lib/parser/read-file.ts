@@ -22,7 +22,7 @@ export type RawFile = {
   /** CSV일 때만: 실제로 읽은 인코딩 */
   encoding?: "utf-8" | "utf-8-bom" | "cp949";
   sheets: RawSheet[];
-  /** PDF는 다음 단계에서 AI가 직접 읽는다. 여기서는 그대로 넘긴다 */
+  /** PDF 원본 바이트. 글자 PDF는 sheets에 쪽마다 셀 표로도 들어 있다(pdf-table.ts) */
   pdfBytes?: Uint8Array;
   warnings: string[];
 };
@@ -75,6 +75,17 @@ export function cellAddress(sheet: RawSheet, r: number, c: number): string {
   return XLSX.utils.encode_cell({ r: sheet.origin.row + r, c: sheet.origin.col + c });
 }
 
+/** 엑셀·CSV는 바로, PDF는 글자를 꺼내 셀 표로 만든다. 화면과 확인용 스크립트 모두 이것을 쓴다 */
+export async function readBytesAsync(rawName: string, bytes: Uint8Array): Promise<RawFile> {
+  const file = readBytes(rawName, bytes);
+  if (file.kind !== "pdf") return file;
+  const { readPdfSheets } = await import("./pdf-table");
+  const sheets = await readPdfSheets(bytes);
+  if (sheets.length === 0) file.warnings.push("글자를 찾지 못했어요. 스캔한 PDF는 아직 읽지 못해요.");
+  return { ...file, sheets };
+}
+
+/** 엑셀·CSV 읽기(동기). PDF는 셀 표 없이 원본만 담는다 → readBytesAsync를 쓸 것 */
 export function readBytes(rawName: string, bytes: Uint8Array): RawFile {
   // macOS는 한글 파일명을 자모 분리(NFD)로 넘길 때가 있다. 화면·비교용으로 합쳐 둔다
   const fileName = rawName.normalize("NFC");
@@ -115,7 +126,7 @@ export function readBytes(rawName: string, bytes: Uint8Array): RawFile {
 const AMOUNT = /^-?\d{1,3}(,\d{3})+(\.\d+)?$|^-?\d+(\.\d+)?$/;
 
 /** "2,920,000" → 2920000. 0으로 시작하는 코드("0123"), 귀속월("202611"), 8자리 이상 숫자(날짜 20261125 등)는 글자로 둔다 */
-function toNumberIfAmount(v: CellValue): CellValue {
+export function toNumberIfAmount(v: CellValue): CellValue {
   if (typeof v !== "string") return v;
   const s = v.trim();
   if (s === "") return null;
@@ -138,5 +149,5 @@ function toIsoDate(d: Date): string {
 /** 브라우저에서 <input type="file">로 받은 파일 읽기 */
 export async function readFile(file: File): Promise<RawFile> {
   const buf = new Uint8Array(await file.arrayBuffer());
-  return readBytes(file.name, buf);
+  return readBytesAsync(file.name, buf);
 }

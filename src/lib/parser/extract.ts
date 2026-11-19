@@ -517,8 +517,8 @@ export function extractFile(file: RawFile): ParseResult {
   const tables: TableReport[] = [];
   const skipped: SkippedSheet[] = [];
 
-  if (file.kind === "pdf") {
-    return { batches: [], tables, skipped: [{ fileName: file.fileName, reason: "PDF는 AI가 직접 읽어야 해요(Claude API 키를 넣은 뒤 지원)." }] };
+  if (file.kind === "pdf" && file.sheets.length === 0) {
+    return { batches: [], tables, skipped: [{ fileName: file.fileName, reason: "글자를 찾지 못한 PDF예요. 스캔한 PDF는 아직 읽지 못해요." }] };
   }
   if (file.kind === "unknown") return { batches: [], tables, skipped: [{ fileName: file.fileName, reason: "지원하지 않는 형식이에요." }] };
 

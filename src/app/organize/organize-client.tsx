@@ -90,7 +90,7 @@ export function OrganizeClient() {
             열 이름을 표준 항목 사전으로 먼저 분류하고, 금액은 원본 칸에서 그대로 가져와 검산했어요. 사전에 없는 열{" "}
             {guessed.length > 0 && <b className="text-foreground">{guessed.length}개</b>}는 지급·공제 위치로 추정했어요.
           </p>
-          <p>Claude API 키를 연결하면 추정한 열과 PDF 급여대장을 AI가 다시 확인해요.</p>
+          <p>PDF는 파일 안의 글자와 위치로 표를 다시 만들어 같은 방식으로 정리했어요. Claude API 키를 연결하면 추정한 열을 AI가 다시 확인해요.</p>
         </CardContent>
       </Card>
 
