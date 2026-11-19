@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowRight, CheckCircle2, FileQuestion, FileSpreadsheet, FileText, Info, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Loader2, CheckCircle2, FileQuestion, FileSpreadsheet, FileText, Info, Trash2, Upload, X } from "lucide-react";
 import { detectKind, readFile, type RawFile } from "@/lib/parser/read-file";
 import { extractFiles } from "@/lib/parser/extract";
 import { saveParseResult } from "@/lib/store";
@@ -31,6 +31,7 @@ export function UploadClient() {
   const router = useRouter();
 
   const [notice, setNotice] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
   // addFiles 안에서 최신 목록으로 중복을 확인하려고 둔다
   const itemsRef = useRef<Item[]>([]);
   useEffect(() => {
@@ -85,7 +86,7 @@ export function UploadClient() {
     reading.length > 0
       ? `파일 ${reading.length}개를 읽는 중이에요. 잠시만 기다려 주세요.`
       : problems.length > 0
-        ? `정리할 수 없는 파일 ${problems.length}개를 빼야 다음 단계로 갈 수 있어요.`
+        ? `변환할 수 없는 파일 ${problems.length}개를 빼야 진행할 수 있어요.`
         : null;
   const allSelected = items.length > 0 && selected.size === items.length;
 
@@ -96,6 +97,32 @@ export function UploadClient() {
       else next.add(id);
       return next;
     });
+  }
+
+  /** 명세서 변환: 2단계 정리(열 분류·금액 추출·검산)를 화면 없이 돌리고 확인·수정 화면으로 간다 */
+  async function convert() {
+    setConverting(true);
+    // 팝업이 먼저 그려지도록 한 박자 쉰다
+    await new Promise((r) => setTimeout(r, 50));
+    const started = Date.now();
+    try {
+      const result = extractFiles(done.map((i) => i.file!));
+      if (result.batches.length === 0) {
+        setConverting(false);
+        const why = result.skipped.map((x) => `${x.fileName}: ${x.reason}`).join(" / ");
+        setNotice(`급여 표를 찾지 못했어요. ${why}`);
+        return;
+      }
+      saveParseResult(result);
+      // 너무 빨리 넘어가면 팝업이 깜빡이기만 해서, 잠깐은 보여준다
+      const rest = 700 - (Date.now() - started);
+      if (rest > 0) await new Promise((r) => setTimeout(r, rest));
+      router.push("/review");
+    } catch (e) {
+      console.error("명세서 변환 실패:", e);
+      setConverting(false);
+      setNotice("변환하다가 문제가 생겼어요. 파일을 확인하고 다시 시도해 주세요.");
+    }
   }
 
   function remove(ids: Set<string>) {
@@ -196,18 +223,40 @@ export function UploadClient() {
               )}
             </div>
           )}
-          <Button
-            size="lg"
-            disabled={!canOrganize}
-            onClick={() => {
-              saveParseResult(extractFiles(done.map((i) => i.file!)));
-              router.push("/organize");
-            }}
-          >
-            AI로 정리하기 <ArrowRight />
+          <Button size="lg" disabled={!canOrganize || converting} onClick={() => void convert()}>
+            명세서 변환하기 <ArrowRight />
           </Button>
         </div>
       )}
+
+      {converting && <ConvertingDialog count={done.length} />}
+    </div>
+  );
+}
+
+/** 변환하는 동안 띄우는 팝업. 닫기 버튼 없이, 끝나면 다음 화면으로 넘어간다 */
+function ConvertingDialog({ count }: { count: number }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 px-4 backdrop-blur-sm">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-busy="true"
+        aria-labelledby="converting-title"
+        className="flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl bg-white px-8 py-10 text-center shadow-[0_24px_60px_rgba(0,0,0,0.2)]"
+      >
+        <span className="flex size-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+          <Loader2 className="size-7 animate-spin" />
+        </span>
+        <h2 id="converting-title" className="text-xl font-bold">
+          처리 중이에요
+        </h2>
+        <p className="text-sm leading-relaxed text-neutral-500">
+          급여대장 {count}개에서 직원별 지급·공제 내역을 읽고 있어요.
+          <br />
+          잠시만 기다려 주세요.
+        </p>
+      </div>
     </div>
   );
 }

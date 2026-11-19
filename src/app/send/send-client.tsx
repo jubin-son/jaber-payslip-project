@@ -46,7 +46,7 @@ export function SendClient() {
     return (
       <Guide
         title="아직 발송할 파일이 없어요"
-        text="1단계에서 급여대장을 올리고, 3단계에서 확인한 뒤 명세서를 만들면 여기서 발송할 수 있어요."
+        text="급여대장을 올려 변환하고, 확인·수정 화면에서 확인한 뒤 명세서를 만들면 여기서 발송할 수 있어요."
         href="/upload"
         button="파일 올리러 가기"
       />
@@ -55,7 +55,7 @@ export function SendClient() {
   if (reviewed.status === "not-reviewed") {
     return (
       <Guide
-        title="먼저 3단계에서 확인해 주세요"
+        title="먼저 확인·수정 화면에서 확인해 주세요"
         text="올린 파일을 담당자 확인·수정 화면에서 확인하면 발송할 수 있어요."
         href="/review"
         button="담당자 확인·수정으로 가기"
@@ -178,17 +178,17 @@ export function SendClient() {
 
           {!batch.payDate && (
             <Notice>
-              지급일이 비어 있어요. 안내에 &lsquo;지급일 미정&rsquo;으로 나가니, 3단계에서 지급일을 입력하는 게 좋아요.{" "}
+              지급일이 비어 있어요. 안내에 &lsquo;지급일 미정&rsquo;으로 나가니, 확인·수정 화면에서 지급일을 입력하는 게 좋아요.{" "}
               <Link href="/review" className="font-medium underline underline-offset-2">
-                3단계로 가기
+                확인·수정 화면으로 가기
               </Link>
             </Notice>
           )}
           {unconfirmed > 0 && (
             <Notice>
-              3단계에서 확인 완료하지 않은 직원 {unconfirmed}명은 발송 대상에서 빠져요.{" "}
+              확인·수정 화면에서 확인 완료하지 않은 직원 {unconfirmed}명은 발송 대상에서 빠져요.{" "}
               <Link href="/review" className="font-medium underline underline-offset-2">
-                3단계로 가기
+                확인·수정 화면으로 가기
               </Link>
             </Notice>
           )}
@@ -204,7 +204,7 @@ export function SendClient() {
       {ready.length === 0 ? (
         <Guide
           title="아직 확인 완료한 직원이 없어요"
-          text={`${batch.companyName}의 직원 ${batch.employees.length}명을 3단계에서 확인 완료하면 발송할 수 있어요.`}
+          text={`${batch.companyName}의 직원 ${batch.employees.length}명을 확인·수정 화면에서 확인 완료하면 발송할 수 있어요.`}
           href="/review"
           button="담당자 확인·수정으로 가기"
         />

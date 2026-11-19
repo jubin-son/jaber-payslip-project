@@ -34,7 +34,6 @@ const payrollServices: Service[] = [
     ],
     tags: [
       { label: "급여대장 업로드", href: "/upload" },
-      { label: "AI 정리", href: "/organize" },
       { label: "확인·수정", href: "/review" },
       { label: "명세서 발송", href: "/send" },
     ],
@@ -58,18 +57,16 @@ const payrollServices: Service[] = [
 
 const quick = [
   { label: "급여대장 업로드", href: "/upload" },
-  { label: "AI 정리 결과", href: "/organize" },
   { label: "확인·수정", href: "/review" },
   { label: "직원별 명세서", href: "/payslips" },
   { label: "알림톡 발송", href: "/send" },
 ];
 
 const flow = [
-  { no: "01", when: "파일을 받았을 때", title: "급여대장 올리기", desc: "엑셀, CSV, PDF 어떤 양식이든 그대로 올리세요", href: "/upload" },
-  { no: "02", when: "정리할 때", title: "AI가 항목 정리", desc: "지급·공제 항목을 나누고 합계를 검산해요", href: "/organize" },
-  { no: "03", when: "확인할 때", title: "틀린 곳만 고치기", desc: "검산이 안 맞는 칸을 색으로 보여드려요", href: "/review" },
-  { no: "04", when: "명세서를 만들 때", title: "직원별 급여명세서", desc: "확인한 금액으로 직원마다 명세서를 만들어요", href: "/payslips" },
-  { no: "05", when: "보낼 때", title: "알림톡으로 발송", desc: "직원은 휴대폰 링크로 명세서를 확인해요", href: "/send" },
+  { no: "01", when: "파일을 받았을 때", title: "올리고 변환하기", desc: "엑셀, CSV, PDF 어떤 양식이든 올리면 AI가 지급·공제를 정리해요", href: "/upload" },
+  { no: "02", when: "확인할 때", title: "틀린 곳만 고치기", desc: "숫자가 의심되는 곳을 먼저 보여주고, 고치면 명세서에 바로 반영돼요", href: "/review" },
+  { no: "03", when: "명세서를 만들 때", title: "직원별 급여명세서", desc: "확인한 금액으로 직원마다 명세서를 만들어요", href: "/payslips" },
+  { no: "04", when: "보낼 때", title: "알림톡으로 발송", desc: "직원은 휴대폰 링크로 명세서를 확인해요", href: "/send" },
 ];
 
 export default function Home() {
@@ -158,7 +155,7 @@ export default function Home() {
           <p className="mt-4 text-lg text-neutral-600">
             급여대장을 받은 순간부터 직원이 명세서를 확인할 때까지 단계별로 이어져요
           </p>
-          <ol className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ol className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {flow.map((f) => (
               <li key={f.no}>
                 <Link

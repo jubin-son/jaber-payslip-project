@@ -35,7 +35,7 @@ export function PayslipsClient() {
     return (
       <Guide
         title="아직 명세서를 만들 파일이 없어요"
-        text="1단계에서 급여대장을 올리고 정리한 뒤, 3단계에서 확인하면 여기서 명세서가 만들어져요."
+        text="급여대장을 올려 명세서로 변환한 뒤 확인·수정 화면에서 확인하면 여기서 명세서가 만들어져요."
         href="/upload"
         button="파일 올리러 가기"
       />
@@ -44,7 +44,7 @@ export function PayslipsClient() {
   if (reviewed.status === "not-reviewed") {
     return (
       <Guide
-        title="먼저 3단계에서 확인해 주세요"
+        title="먼저 확인·수정 화면에서 확인해 주세요"
         text="올린 파일을 담당자 확인·수정 화면에서 확인하면 명세서가 만들어져요."
         href="/review"
         button="담당자 확인·수정으로 가기"
@@ -89,17 +89,17 @@ export function PayslipsClient() {
       {ready.length === 0 && (
         <Guide
           title="아직 확인 완료한 직원이 없어요"
-          text={`${batch.companyName}의 직원 ${batch.employees.length}명을 3단계에서 확인 완료하면 명세서가 만들어져요.`}
+          text={`${batch.companyName}의 직원 ${batch.employees.length}명을 확인·수정 화면에서 확인 완료하면 명세서가 만들어져요.`}
           href="/review"
           button="담당자 확인·수정으로 가기"
         />
       )}
       {ready.length > 0 && unconfirmed > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          {errorCount > 0 ? `3단계에 아직 오류가 ${errorCount}개 남아 있어요. ` : ""}
+          {errorCount > 0 ? `확인·수정 화면에 아직 오류가 ${errorCount}개 남아 있어요. ` : ""}
           확인 완료하지 않은 직원 {unconfirmed}명은 명세서가 만들어지지 않았어요. 
           <Link href="/review" className="font-medium underline underline-offset-2">
-            3단계로 돌아가기
+            확인·수정 화면으로 돌아가기
           </Link>
         </div>
       )}
@@ -148,7 +148,7 @@ export function PayslipsClient() {
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">3단계에서 확인 완료하면 명세서가 만들어져요.</p>
+                  <p className="text-xs text-muted-foreground">확인·수정 화면에서 확인 완료하면 명세서가 만들어져요.</p>
                 )}
               </li>
             );
