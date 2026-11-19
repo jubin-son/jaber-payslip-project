@@ -5,22 +5,22 @@ import { dateText, periodText, won } from "./use-reviewed";
 
 function Rows({ title, items, total, totalLabel }: { title: string; items: PayItem[]; total: number; totalLabel: string }) {
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex min-w-0 flex-col gap-2">
       <h3 className="text-sm font-semibold">{title}</h3>
       <ul className="flex flex-col divide-y rounded-lg border">
         {items.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">항목이 없어요</li>}
         {items.map((it, i) => (
-          <li key={`${it.label}-${i}`} className="flex items-baseline justify-between gap-3 px-3 py-2 text-sm">
-            <span className="flex items-center gap-1.5">
+          <li key={`${it.label}-${i}`} className="flex flex-col gap-0.5 px-3 py-2 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+            <span className="flex flex-wrap items-center gap-1.5">
               {it.label}
               {it.taxFree && <span className="rounded bg-muted px-1.5 text-[11px] leading-4 text-muted-foreground">비과세</span>}
             </span>
-            <span className="tabular-nums">{won(it.amount)}</span>
+            <span className="tabular-nums sm:text-right">{won(it.amount)}</span>
           </li>
         ))}
-        <li className="flex items-baseline justify-between gap-3 bg-muted/50 px-3 py-2 text-sm font-medium">
+        <li className="flex flex-col gap-0.5 bg-muted/50 px-3 py-2 text-sm font-medium sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
           <span>{totalLabel}</span>
-          <span className="tabular-nums">{won(total)}</span>
+          <span className="tabular-nums sm:text-right">{won(total)}</span>
         </li>
       </ul>
     </section>
@@ -37,7 +37,7 @@ export function PayslipCard({ batch, employee: e }: { batch: PayrollBatch; emplo
   ].filter(Boolean);
 
   return (
-    <article className="mx-auto flex w-full max-w-md flex-col gap-5 rounded-2xl border bg-background p-5 shadow-sm">
+    <article className="mx-auto flex w-full max-w-2xl flex-col gap-5 rounded-2xl border bg-background p-5 shadow-sm">
       <header className="flex flex-col gap-1">
         <p className="text-sm text-muted-foreground">{batch.companyName}</p>
         <h2 className="text-xl font-semibold">{periodText(batch.payPeriod)} 급여명세서</h2>
@@ -59,8 +59,11 @@ export function PayslipCard({ batch, employee: e }: { batch: PayrollBatch; emplo
         <span className="text-2xl font-semibold tabular-nums">{won(e.netPay)}</span>
       </div>
 
-      <Rows title="지급 내역" items={e.earnings} total={e.totalEarnings} totalLabel="지급 합계" />
-      <Rows title="공제 내역" items={e.deductions} total={e.totalDeductions} totalLabel="공제 합계" />
+      {/* 지급은 왼쪽, 공제는 오른쪽 */}
+      <div className="grid grid-cols-2 items-start gap-3 sm:gap-5">
+        <Rows title="지급 내역" items={e.earnings} total={e.totalEarnings} totalLabel="지급 합계" />
+        <Rows title="공제 내역" items={e.deductions} total={e.totalDeductions} totalLabel="공제 합계" />
+      </div>
 
       <p className="text-xs text-muted-foreground">문의는 급여 담당자에게 해 주세요.</p>
     </article>
