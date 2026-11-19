@@ -35,7 +35,7 @@ npm run dev
 ```
 src/
   app/upload/         주빈
-  app/review/         현지
+  app/review/         주빈, 현지
   app/payslips/       현지
   app/send/           현지
   app/p/[id]/         현지
