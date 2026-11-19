@@ -1,12 +1,14 @@
 "use client";
 // 3단계: 담당자 확인·수정 화면.
-// 지금은 샘플 데이터(samples.withIssues 등)로 동작한다. 파서 연결 단계에서 store의 결과로 바꾼다.
+// 1~2단계에서 올려 정리한 결과(src/lib/store.ts)를 읽어 보여준다. 올린 파일이 없으면 안내만 보여준다.
 import Link from "next/link";
-import { useState } from "react";
-import { samples, type SampleName } from "@/lib/samples";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { useParseResult } from "@/lib/store";
+import type { ParseResult } from "@/lib/parser/extract";
 import {
   addLog,
-  initialReviewState,
+  resetReview,
+  signatureOf,
   updateReview,
   useReviewState,
   type EditLog,
@@ -21,6 +23,7 @@ import {
   type Issue,
   type PayCategory,
   type PayItem,
+  type PayrollBatch,
 } from "@/types/payroll";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,12 +50,6 @@ function lastEditAt(history: EditLog[], employeeId: string, field: string): stri
 }
 
 type ItemGroup = "earnings" | "deductions";
-
-const SAMPLE_LABELS: Record<SampleName, string> = {
-  withIssues: "카페소라결 (오류 포함)",
-  normal: "새하얀결세탁소 (정상)",
-  large: "책여울스터디카페 (12명)",
-};
 
 /** 검산으로 다시 만드는 issue. 나머지(매칭·수신동의·분류 등)는 그대로 둔다 */
 const RECHECK_CODES: Issue["code"][] = ["SUM_MISMATCH", "NET_MISMATCH", "RATE_OUT_OF_RANGE"];
@@ -113,27 +110,72 @@ function count(issues: Issue[], level: Issue["level"]) {
 
 // ---------- 화면 ----------
 
-export function ReviewClient() {
-  const state = useReviewState();
-  if (!state) {
-    return <p className="text-muted-foreground">불러오는 중…</p>;
-  }
-  return <ReviewScreen state={state} />;
+/** 브라우저에서 화면이 준비됐는지. 저장된 값은 브라우저에만 있어서, 준비되기 전에 "파일 없음"을 보여주면 깜빡인다 */
+function useHydrated() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 }
 
-function ReviewScreen({ state }: { state: ReviewState }) {
-  const { sampleName, batch, history, totalsBefore } = state;
+export function ReviewClient() {
+  const hydrated = useHydrated();
+  const result = useParseResult();
+  const state = useReviewState();
+  const sig = result ? signatureOf(result) : null;
+
+  // 새 파일을 올려 정리 결과가 바뀌면 이 화면의 상태도 새로 시작한다
+  useEffect(() => {
+    if (result && sig !== null && state?.signature !== sig) resetReview(result);
+  }, [result, sig, state?.signature]);
+
+  if (!hydrated) return <p className="text-muted-foreground">불러오는 중…</p>;
+  if (!result) return <EmptyState />;
+  if (!state || state.signature !== sig) return <p className="text-muted-foreground">불러오는 중…</p>;
+  return <ReviewScreen state={state} result={result} />;
+}
+
+/** 올린 파일이 없을 때: 아무 데이터도 보여주지 않고 1단계로 안내 */
+function EmptyState() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>아직 확인할 파일이 없어요</CardTitle>
+        <CardDescription>1단계에서 급여대장을 올리고 &lsquo;AI로 정리하기&rsquo;를 누르면, 여기서 결과를 확인하고 고칠 수 있어요.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild>
+          <Link href="/upload">파일 올리러 가기</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResult }) {
+  const { batches, history, totalsBefore } = state;
+  const batch: PayrollBatch = batches[state.activeBatch] ?? batches[0];
   const confirmed = new Set(state.confirmed);
-  const selected = batch.employees.find((e) => e.id === state.selectedId) ?? batch.employees[0];
-  const all = [...batch.issues, ...batch.employees.flatMap((e) => e.issues)];
+  const selected = batch?.employees.find((e) => e.id === state.selectedId) ?? batch?.employees[0];
+  const all = batch ? [...batch.issues, ...batch.employees.flatMap((e) => e.issues)] : [];
   const errorCount = count(all, "error");
+  /** 파일 전체(모든 사업장·귀속월)의 오류. 다음 단계로 가려면 0이어야 한다 */
+  const totalErrors = batches.reduce(
+    (n, b) => n + count([...b.issues, ...b.employees.flatMap((e) => e.issues)], "error"),
+    0,
+  );
   const editsOf = (e: EmployeePay) =>
     [...e.earnings, ...e.deductions].filter((i) => i.edited).length + Object.keys(totalsBefore[e.id] ?? {}).length;
-  const editedCount = batch.employees.reduce((n, e) => n + editsOf(e), 0);
+  const editedCount = batch ? batch.employees.reduce((n, e) => n + editsOf(e), 0) : 0;
 
-  function loadSample(name: SampleName) {
+  function resetAll() {
     if (history.length > 0 && !window.confirm("지금까지 고친 내용과 수정 기록이 모두 지워져요. 계속할까요?")) return;
-    updateReview(() => initialReviewState(name));
+    resetReview(result);
+  }
+
+  function setActiveBatch(i: number) {
+    updateReview((s) => ({ ...s, activeBatch: i, selectedId: s.batches[i]?.employees[0]?.id ?? "" }));
   }
 
   /** 직원 한 명을 고치고, 다시 검산하고, 수정 기록을 남긴다 */
@@ -144,17 +186,20 @@ function ReviewScreen({ state }: { state: ReviewState }) {
     extra?: (s: ReviewState) => Partial<ReviewState>,
   ) {
     updateReview((s) => {
-      const target = s.batch.employees.find((e) => e.id === id);
+      const target = s.batches.flatMap((b) => b.employees).find((e) => e.id === id);
       if (!target) return s;
-      const employees = s.batch.employees.map((e) => {
-        if (e.id !== id) return e;
-        const { next, touched } = fn(clone(e));
-        return { ...next, issues: recheck(next, touched) };
-      });
+      const nextBatches = s.batches.map((b) => ({
+        ...b,
+        employees: b.employees.map((e) => {
+          if (e.id !== id) return e;
+          const { next, touched } = fn(clone(e));
+          return { ...next, issues: recheck(next, touched) };
+        }),
+      }));
       return {
         ...s,
         ...extra?.(s),
-        batch: { ...s.batch, employees },
+        batches: nextBatches,
         // 값을 고치면 "확인 완료"는 다시 풀어 둔다
         confirmed: s.confirmed.filter((c) => c !== id),
         history: addLog(s.history, { ...log, employeeId: id, employeeName: target.name }),
@@ -212,15 +257,33 @@ function ReviewScreen({ state }: { state: ReviewState }) {
   }
 
   function setPayDate(v: string) {
-    updateReview((s) => ({
-      ...s,
-      batch: {
-        ...s.batch,
-        payDate: v || undefined,
-        issues: v ? s.batch.issues.filter((i) => i.code !== "NO_PAY_DATE") : clone(samples[s.sampleName]).issues,
-      },
-      history: addLog(s.history, { field: "payDate", kind: "payDate", label: "지급일", before: s.batch.payDate ?? null, after: v || null }),
-    }));
+    updateReview((s) => {
+      const cur = s.batches[s.activeBatch];
+      if (!cur) return s;
+      const original = result.batches[s.activeBatch]?.issues ?? [];
+      const batches = s.batches.map((b, i) =>
+        i !== s.activeBatch
+          ? b
+          : {
+              ...b,
+              payDate: v || undefined,
+              // 지급일을 채우면 "지급일 없음" 경고를 지우고, 비우면 원래 경고를 되살린다
+              issues: v ? b.issues.filter((x) => x.code !== "NO_PAY_DATE") : clone(original),
+            },
+      );
+      return {
+        ...s,
+        batches,
+        history: addLog(s.history, {
+          employeeName: cur.companyName,
+          field: "payDate",
+          kind: "payDate",
+          label: "지급일",
+          before: cur.payDate ?? null,
+          after: v || null,
+        }),
+      };
+    });
   }
 
   function setSelectedId(id: string) {
@@ -234,25 +297,31 @@ function ReviewScreen({ state }: { state: ReviewState }) {
     }));
   }
 
-  if (!selected) {
+  if (!batch || !selected) {
     return <p className="text-muted-foreground">직원 데이터가 없어요.</p>;
   }
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 샘플 고르기 */}
+      {/* 사업장·귀속월이 여러 개면 고르기 */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted-foreground">샘플 데이터</span>
-        {(Object.keys(samples) as SampleName[]).map((n) => (
-          <Button key={n} size="sm" variant={n === sampleName ? "default" : "outline"} onClick={() => loadSample(n)}>
-            {SAMPLE_LABELS[n]}
-          </Button>
-        ))}
-        {history.length > 0 && (
-          <Button size="sm" variant="ghost" onClick={() => loadSample(sampleName)}>
-            처음 상태로 되돌리기
-          </Button>
+        {batches.length > 1 && (
+          <>
+            <span className="text-muted-foreground">사업장·귀속월</span>
+            {batches.map((b, i) => {
+              const lv = worst([...b.issues, ...b.employees.flatMap((e) => e.issues)]);
+              return (
+                <Button key={b.id} size="sm" variant={i === state.activeBatch ? "default" : "outline"} onClick={() => setActiveBatch(i)}>
+                  {lv && <span aria-hidden className={`size-2 rounded-full ${LEVEL_STYLE[lv].dot}`} />}
+                  {b.companyName} · {b.payPeriod}
+                </Button>
+              );
+            })}
+          </>
         )}
+        <Button size="sm" variant="ghost" className="ml-auto" disabled={history.length === 0} onClick={resetAll}>
+          처음 상태로 되돌리기
+        </Button>
       </div>
 
       {/* 파일 요약 */}
@@ -351,9 +420,9 @@ function ReviewScreen({ state }: { state: ReviewState }) {
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
         <p className="text-sm text-muted-foreground">
-          {errorCount > 0 ? `오류 ${errorCount}개를 먼저 고쳐 주세요.` : "오류가 없어요. 명세서를 만들 수 있어요."}
+          {totalErrors > 0 ? `오류 ${totalErrors}개를 먼저 고쳐 주세요${batches.length > 1 ? " (모든 사업장·귀속월 합계)" : ""}.` : "오류가 없어요. 명세서를 만들 수 있어요."}
         </p>
-        {errorCount > 0 ? (
+        {totalErrors > 0 ? (
           <Button disabled>다음: 명세서 만들기</Button>
         ) : (
           <Button asChild>
