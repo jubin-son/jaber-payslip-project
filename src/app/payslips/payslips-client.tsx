@@ -61,18 +61,7 @@ export function PayslipsClient() {
   const unconfirmed = batch.employees.length - ready.length;
   const total = ready.reduce((n, e) => n + e.netPay, 0);
 
-  if (ready.length === 0) {
-    return (
-      <Guide
-        title="아직 확인 완료한 직원이 없어요"
-        text={`${batch.companyName}의 직원 ${batch.employees.length}명을 3단계에서 확인 완료하면 명세서가 만들어져요.`}
-        href="/review"
-        button="담당자 확인·수정으로 가기"
-      />
-    );
-  }
-
-  const selected = ready.find((e) => e.id === selectedId) ?? ready[0];
+  const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
 
   async function copyLink(id: string) {
     try {
@@ -86,16 +75,6 @@ export function PayslipsClient() {
 
   return (
     <div className="flex flex-col gap-6">
-      {unconfirmed > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          {errorCount > 0 ? `3단계에 아직 오류가 ${errorCount}개 남아 있어요. ` : ""}
-          확인 완료하지 않은 직원 {unconfirmed}명은 명세서가 만들어지지 않았어요. 
-          <Link href="/review" className="font-medium underline underline-offset-2">
-            3단계로 돌아가기
-          </Link>
-        </div>
-      )}
-
       {batches.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">사업장·귀속월</span>
@@ -107,6 +86,26 @@ export function PayslipsClient() {
         </div>
       )}
 
+      {ready.length === 0 && (
+        <Guide
+          title="아직 확인 완료한 직원이 없어요"
+          text={`${batch.companyName}의 직원 ${batch.employees.length}명을 3단계에서 확인 완료하면 명세서가 만들어져요.`}
+          href="/review"
+          button="담당자 확인·수정으로 가기"
+        />
+      )}
+      {ready.length > 0 && unconfirmed > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          {errorCount > 0 ? `3단계에 아직 오류가 ${errorCount}개 남아 있어요. ` : ""}
+          확인 완료하지 않은 직원 {unconfirmed}명은 명세서가 만들어지지 않았어요. 
+          <Link href="/review" className="font-medium underline underline-offset-2">
+            3단계로 돌아가기
+          </Link>
+        </div>
+      )}
+
+      {selected && (
+        <>
       <Card>
         <CardHeader>
           <CardDescription>{periodText(batch.payPeriod)} 급여명세서</CardDescription>
@@ -140,7 +139,7 @@ export function PayslipsClient() {
                 {ok ? (
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/p/${e.id}`} target="_blank">
+                      <Link href={`/p/${e.id}`}>
                         명세서 열기
                       </Link>
                     </Button>
@@ -161,6 +160,9 @@ export function PayslipsClient() {
           <PayslipCard batch={batch} employee={selected} />
         </div>
       </div>
+
+        </>
+      )}
 
       <p className="text-xs text-muted-foreground">
         지금은 이 브라우저 탭 안에서만 링크가 열려요. 다른 기기에서도 열리게 하려면 저장소(Supabase) 연결이 필요해요.

@@ -1,5 +1,5 @@
 // 직원 한 명의 급여명세서 한 장. 목록 미리보기(/payslips)와 직원용 링크(/p/[id])가 같이 쓴다.
-// 모바일에서 먼저 보기 좋게 한 줄에 항목명 + 금액으로 보여준다.
+// 휴대폰·컴퓨터 모두에서 보이고, 인쇄·PDF로 저장할 때는 테두리와 그림자를 없앤다.
 import type { EmployeePay, PayItem, PayrollBatch } from "@/types/payroll";
 import { dateText, periodText, won } from "./use-reviewed";
 
@@ -37,7 +37,7 @@ export function PayslipCard({ batch, employee: e }: { batch: PayrollBatch; emplo
   ].filter(Boolean);
 
   return (
-    <article className="mx-auto flex w-full max-w-2xl flex-col gap-5 rounded-2xl border bg-background p-5 shadow-sm">
+    <article className="mx-auto flex w-full max-w-2xl flex-col gap-5 break-inside-avoid rounded-2xl border bg-background p-5 shadow-sm print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none">
       <header className="flex flex-col gap-1">
         <p className="text-sm text-muted-foreground">{batch.companyName}</p>
         <h2 className="text-xl font-semibold">{periodText(batch.payPeriod)} 급여명세서</h2>
