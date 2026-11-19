@@ -90,6 +90,13 @@ export function SendClient() {
   const sentPeople = ready.filter((e) => CHANNELS.some((c) => sentAt(e, c)));
   const openedPeople = sentPeople.filter((e) => opens[e.id]);
 
+  // 발송 대상을 겹치지 않게 넷으로 나눈다: 발송 완료(한 곳이라도 보냄) → 보낼 수 없음 → 발송 예정(보낼 곳을 골랐음) → 선택 안 함
+  const sentIds = new Set(sentPeople.map((e) => e.id));
+  const pendingIds = new Set(toSend.map((i) => i.employeeId));
+  const blockedPeople = ready.filter((e) => !sentIds.has(e.id) && !availability(e, "kakao").ok && !availability(e, "mail").ok);
+  const pendingPeople = ready.filter((e) => !sentIds.has(e.id) && pendingIds.has(e.id));
+  const idleCount = ready.length - sentPeople.length - blockedPeople.length - pendingPeople.length;
+
   function toggle(e: EmployeePay, c: Channel) {
     const cur = pickOf(e);
     setPicks((p) => ({ ...p, [e.id]: { ...cur, [c]: !cur[c] } }));
@@ -147,6 +154,27 @@ export function SendClient() {
               sub={sentPeople.length > 0 ? "발송한 직원 중" : "발송 후 표시돼요"}
             />
           </dl>
+
+          {/* 발송 대상 중 어디까지 보냈는지 */}
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <span className="text-muted-foreground">발송 대상 {ready.length}명 중</span>
+            <span className="text-emerald-700 dark:text-emerald-400">
+              발송 완료 <b>{sentPeople.length}</b>명
+            </span>
+            <span>
+              발송 예정 <b>{pendingPeople.length}</b>명
+            </span>
+            {blockedPeople.length > 0 && (
+              <span className="text-red-600 dark:text-red-400">
+                보낼 수 없음 <b>{blockedPeople.length}</b>명
+              </span>
+            )}
+            {idleCount > 0 && (
+              <span className="text-muted-foreground">
+                선택 안 함 <b>{idleCount}</b>명
+              </span>
+            )}
+          </p>
 
           {!batch.payDate && (
             <Notice>
