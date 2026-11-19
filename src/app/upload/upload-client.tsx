@@ -185,6 +185,7 @@ function FileRow({
           {item.status === "reading" && <span>· 읽는 중…</span>}
           {item.status === "error" && <span className="text-destructive">· 읽지 못했어요: {item.error}</span>}
           {f && f.kind !== "pdf" && <span>· 시트 {f.sheets.length}개</span>}
+          {f && f.kind === "pdf" && f.sheets.length > 0 && <span>· 표 {f.sheets.length}쪽 읽음</span>}
           {f?.encoding && <span>· {encodingLabel(f.encoding)}</span>}
           {f?.warnings.map((w) => (
             <span key={w} className="text-amber-600">

@@ -53,11 +53,14 @@ export function findPayDate(text: string, fallbackYear?: number): string | undef
 export function findPeriod(text: string, fallbackYear?: number): string | undefined {
   let m = text.match(/귀속\S*\s*[:：]?\s*(20\d{2})\s*[년.\-/]?\s*(\d{1,2})/);
   if (m) return `${m[1]}-${pad(+m[2])}`;
+  // "임금산정기간: 2026.11.01 ~ 2026.11.30" → 시작일의 연·월
+  m = text.match(/(?:산정\s*기간|급여\s*기간|임금\s*기간)\s*[:：]?\s*(20\d{2})\s*[년.\-/]\s*(\d{1,2})/);
+  if (m) return `${m[1]}-${pad(+m[2])}`;
   m = text.match(/(\d{1,2})\s*월분/);
   if (m && fallbackYear) return `${fallbackYear}-${pad(+m[1])}`;
   m = text.match(/(20\d{2})\s*년도?\s*(\d{1,2})\s*월(?!\s*\d{1,2}\s*일)/);
   if (m) return `${m[1]}-${pad(+m[2])}`;
-  m = text.match(/(20\d{2})[.\-](\d{1,2})(?![.\-]\d)/);
+  m = text.match(/(20\d{2})[.\-](\d{1,2})(?!\d|[.\-]\d)/);
   if (m) return `${m[1]}-${pad(+m[2])}`;
   m = text.match(/(?:^|[^\d])(20\d{2})(0[1-9]|1[0-2])(?:[^\d]|$)/);
   if (m) return `${m[1]}-${m[2]}`;
@@ -79,13 +82,14 @@ export function findUnit(text: string): "원" | "천원" {
 export function findCompany(texts: string[]): string | undefined {
   for (let i = 0; i < texts.length; i++) {
     const t = texts[i];
-    const m = t.match(/회사명\s*[:：]\s*(.+)/);
+    const m = t.match(/(?:회사명|사업장명|상호)\s*[:：]\s*(.+)/);
     if (m && m[1].trim()) return m[1].trim();
-    if (/^회사명\s*[:：]?$/.test(t.trim()) && texts[i + 1]) return texts[i + 1].trim();
+    if (/^(?:회사명|사업장명|상호)\s*[:：]?$/.test(t.trim()) && texts[i + 1]) return texts[i + 1].trim();
   }
   for (const t of texts) {
     const head = t.split(/\s*(?:20\d{2}\s*년|\d{1,2}\s*월|급여|임금|\(|\[)/)[0].trim();
-    if (head.length >= 2 && !/^(급|여|대|장|\s)+$/.test(head)) return head;
+    // "급 여 대 장", "임 금 대 장" 같은 제목은 사업장명이 아니다
+    if (head.length >= 2 && !/^(급|여|임|금|대|장|\s)+$/.test(head)) return head;
   }
   return undefined;
 }
