@@ -1,16 +1,27 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, FileSpreadsheet, FileText, Trash2, Upload, X } from "lucide-react";
-import { readFile, type RawFile } from "@/lib/parser/read-file";
+import { AlertCircle, ArrowRight, CheckCircle2, FileQuestion, FileSpreadsheet, FileText, Info, Trash2, Upload, X } from "lucide-react";
+import { detectKind, readFile, type RawFile } from "@/lib/parser/read-file";
 import { extractFiles } from "@/lib/parser/extract";
 import { saveParseResult } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 
 const ACCEPT = ".xlsx,.xls,.csv,.pdf";
 
-type Item = { id: string; status: "reading" | "done" | "error"; file?: RawFile; name: string; size: number; error?: string };
+// unsupported: xlsx·csv·pdf가 아니라 읽지 않은 파일, error: 읽다가 실패한 파일
+type Item = {
+  id: string;
+  status: "reading" | "done" | "error" | "unsupported";
+  file?: RawFile;
+  name: string;
+  size: number;
+  error?: string;
+};
+
+/** 같은 파일인지: 이름과 크기가 모두 같으면 같은 파일로 본다 */
+const fileKey = (name: string, size: number) => `${name.normalize("NFC")}::${size}`;
 
 export function UploadClient() {
   const [items, setItems] = useState<Item[]>([]);
@@ -19,23 +30,47 @@ export function UploadClient() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  const [notice, setNotice] = useState<string | null>(null);
+  // addFiles 안에서 최신 목록으로 중복을 확인하려고 둔다
+  const itemsRef = useRef<Item[]>([]);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   const addFiles = useCallback(async (files: FileList | File[]) => {
-    const list = Array.from(files);
-    const pending: Item[] = list.map((f, i) => ({
-      id: `${Date.now()}-${i}-${f.name}`,
-      name: f.name.normalize("NFC"),
-      size: f.size,
-      status: "reading",
-    }));
+    const seen = new Set(itemsRef.current.map((it) => fileKey(it.name, it.size)));
+    const skipped: string[] = [];
+    const list = Array.from(files).filter((f) => {
+      const key = fileKey(f.name, f.size);
+      if (seen.has(key)) {
+        skipped.push(f.name.normalize("NFC"));
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+    setNotice(skipped.length ? `이미 올린 파일이라 빼 두었어요: ${skipped.join(", ")}` : null);
+    if (list.length === 0) return;
+
+    const pending: Item[] = list.map((f, i) => {
+      const name = f.name.normalize("NFC");
+      return {
+        id: `${Date.now()}-${i}-${name}`,
+        name,
+        size: f.size,
+        status: detectKind(name) === "unknown" ? "unsupported" : "reading",
+      };
+    });
     setItems((prev) => [...prev, ...pending]);
     await Promise.all(
       list.map(async (f, i) => {
-        const id = pending[i].id;
+        const { id, status } = pending[i];
+        if (status === "unsupported") return;
         try {
           const raw = await readFile(f);
           setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: "done", file: raw } : it)));
         } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
+          const msg = readErrorMessage(e);
           setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status: "error", error: msg } : it)));
         }
       }),
@@ -43,6 +78,15 @@ export function UploadClient() {
   }, []);
 
   const done = items.filter((i) => i.status === "done");
+  const reading = items.filter((i) => i.status === "reading");
+  const problems = items.filter((i) => i.status === "error" || i.status === "unsupported");
+  const canOrganize = done.length > 0 && reading.length === 0 && problems.length === 0;
+  const blockReason =
+    reading.length > 0
+      ? `파일 ${reading.length}개를 읽는 중이에요. 잠시만 기다려 주세요.`
+      : problems.length > 0
+        ? `정리할 수 없는 파일 ${problems.length}개를 빼야 다음 단계로 갈 수 있어요.`
+        : null;
   const allSelected = items.length > 0 && selected.size === items.length;
 
   function toggle(id: string) {
@@ -94,6 +138,16 @@ export function UploadClient() {
         />
       </label>
 
+      {notice && (
+        <div role="status" className="flex items-start gap-3 rounded-2xl bg-sky-50 px-5 py-4 text-sm text-sky-800">
+          <Info className="mt-0.5 size-4 shrink-0" />
+          <span className="flex-1">{notice}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label="안내 닫기" className="text-sky-600 hover:text-sky-900">
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
       {items.length > 0 && (
         <section className="overflow-hidden rounded-3xl bg-white shadow-[0_4px_24px_rgba(0,0,0,0.05)] ring-1 ring-neutral-200/70">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 px-5 py-4">
@@ -128,10 +182,23 @@ export function UploadClient() {
       )}
 
       {items.length > 0 && (
-        <div className="flex justify-end">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+          {blockReason && (
+            <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-2 text-sm sm:justify-end">
+              <span className={`flex items-center gap-1.5 ${problems.length > 0 && reading.length === 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                <AlertCircle className="size-4 shrink-0" />
+                {blockReason}
+              </span>
+              {problems.length > 0 && reading.length === 0 && (
+                <Button variant="outline" size="sm" onClick={() => remove(new Set(problems.map((p) => p.id)))}>
+                  문제 있는 파일 빼기
+                </Button>
+              )}
+            </div>
+          )}
           <Button
             size="lg"
-            disabled={done.length === 0 || done.length !== items.length}
+            disabled={!canOrganize}
             onClick={() => {
               saveParseResult(extractFiles(done.map((i) => i.file!)));
               router.push("/organize");
@@ -158,9 +225,10 @@ function FileRow({
 }) {
   const f = item.file;
   const kind = f?.kind ?? kindFromName(item.name);
-  const Icon = kind === "pdf" ? FileText : FileSpreadsheet;
+  const bad = item.status === "error" || item.status === "unsupported";
+  const Icon = item.status === "unsupported" ? FileQuestion : kind === "pdf" ? FileText : FileSpreadsheet;
   return (
-    <li className={`flex items-center gap-4 px-5 py-4 transition-colors ${checked ? "bg-indigo-50/60" : "hover:bg-neutral-50"}`}>
+    <li className={`flex items-center gap-4 px-5 py-4 transition-colors ${bad ? "bg-red-50/70" : checked ? "bg-indigo-50/60" : "hover:bg-neutral-50"}`}>
       <input
         type="checkbox"
         className="size-4 shrink-0 accent-neutral-900"
@@ -170,7 +238,7 @@ function FileRow({
       />
       <span
         className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
-          kind === "pdf" ? "bg-rose-50 text-rose-500" : kind === "csv" ? "bg-sky-50 text-sky-600" : "bg-emerald-50 text-emerald-600"
+          bad ? "bg-red-100 text-red-500" : kind === "pdf" ? "bg-rose-50 text-rose-500" : kind === "csv" ? "bg-sky-50 text-sky-600" : "bg-emerald-50 text-emerald-600"
         }`}
       >
         <Icon className="size-5" />
@@ -183,7 +251,10 @@ function FileRow({
           <span>{kind.toUpperCase()}</span>
           <span>· {formatSize(item.size)}</span>
           {item.status === "reading" && <span>· 읽는 중…</span>}
-          {item.status === "error" && <span className="text-destructive">· 읽지 못했어요: {item.error}</span>}
+          {item.status === "unsupported" && (
+            <span className="font-medium text-destructive">· 올릴 수 없는 형식이에요 (엑셀·CSV·PDF만 가능)</span>
+          )}
+          {item.status === "error" && <span className="font-medium text-destructive">· {item.error}</span>}
           {f && f.kind !== "pdf" && <span>· 시트 {f.sheets.length}개</span>}
           {f && f.kind === "pdf" && f.sheets.length > 0 && <span>· 표 {f.sheets.length}쪽 읽음</span>}
           {f?.encoding && <span>· {encodingLabel(f.encoding)}</span>}
@@ -200,6 +271,15 @@ function FileRow({
       </Button>
     </li>
   );
+}
+
+/** 읽기 실패 이유를 담당자가 알아들을 말로 바꾼다 (원문은 콘솔에 남긴다) */
+function readErrorMessage(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  console.warn("파일 읽기 실패:", raw);
+  // 엑셀 암호 파일은 SheetJS가 "File is password-protected"로 알려준다. 깨진 ZIP의 "encryption" 오류와 구분한다
+  if (/password/i.test(raw)) return "암호가 걸린 파일이에요. 암호를 풀고 다시 올려 주세요";
+  return "파일이 손상됐거나 내용을 읽을 수 없어요";
 }
 
 function kindFromName(name: string): string {
