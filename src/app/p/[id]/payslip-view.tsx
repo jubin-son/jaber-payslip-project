@@ -1,5 +1,7 @@
 "use client";
+import { useEffect, useRef } from "react";
 import { PayslipCard } from "@/app/payslips/payslip-card";
+import { recordOpened } from "@/app/send/send-store";
 import { periodText, useReviewed } from "@/app/payslips/use-reviewed";
 import { Button } from "@/components/ui/button";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
@@ -10,8 +12,18 @@ function printAs(fileName: string) {
   window.print();
 }
 
-function PayslipWithActions({ batch, employee }: { batch: PayrollBatch; employee: EmployeePay }) {
+function PayslipWithActions({ batch, employee, signature }: { batch: PayrollBatch; employee: EmployeePay; signature: string }) {
   const fileName = `${periodText(batch.payPeriod)} 급여명세서_${employee.name}`;
+
+  // 직원이 링크로 열면 열람 시각을 남긴다. 담당자가 목록에서 여는 미리보기(?preview=1)는 직원이 본 게 아니라서 남기지 않는다.
+  // (시연: 지금은 같은 브라우저 탭 안에서만 기록된다. 직원 기기에서 열린 걸 알려면 저장소(Supabase)가 필요하다)
+  const recorded = useRef(false);
+  useEffect(() => {
+    if (recorded.current) return;
+    recorded.current = true;
+    if (new URLSearchParams(window.location.search).has("preview")) return;
+    recordOpened(signature, employee.id);
+  }, [signature, employee.id]);
 
   return (
     <>
@@ -40,7 +52,7 @@ export function PayslipView({ id }: { id: string }) {
     for (const batch of reviewed.batches) {
       const employee = batch.employees.find((e) => e.id === id);
       // 3단계에서 확인 완료한 직원의 명세서만 열린다
-      if (employee && reviewed.confirmed.has(employee.id)) return <PayslipWithActions batch={batch} employee={employee} />;
+      if (employee && reviewed.confirmed.has(employee.id)) return <PayslipWithActions batch={batch} employee={employee} signature={reviewed.signature} />;
     }
   }
 

@@ -6,11 +6,16 @@ import type { Channel } from "./channels";
 
 export type SendRecord = { at: string };
 
+/** 직원이 명세서 링크를 처음 연 시각 */
+export type OpenRecord = { at: string };
+
 export type SendState = {
   /** 어떤 파일의 발송 결과인지 (3단계 확인 결과의 signature) */
   signature: string;
   /** 직원 id → 채널별 발송 기록 */
   records: Record<string, Partial<Record<Channel, SendRecord>>>;
+  /** 직원 id → 명세서를 열어 본 기록 (시연: 같은 브라우저 탭 안에서만 기록된다) */
+  opens: Record<string, OpenRecord>;
 };
 
 const KEY = "jaber.send.v1";
@@ -51,18 +56,33 @@ export function useSendState(): SendState | null {
   );
 }
 
-/** 보낸 것으로 기록한다 (시연) */
-export function recordSent(signature: string, items: { employeeId: string; channel: Channel }[]) {
+/** 같은 파일의 기록이면 이어서 쓰고, 다른 파일이면 비운 상태에서 시작한다 */
+function base(signature: string): SendState {
   const cur = read();
-  const records = cur && cur.signature === signature ? structuredClone(cur.records) : {};
-  const at = new Date().toISOString();
-  for (const { employeeId, channel } of items) {
-    records[employeeId] = { ...records[employeeId], [channel]: { at } };
-  }
-  commit({ signature, records });
+  return cur && cur.signature === signature
+    ? { signature, records: structuredClone(cur.records), opens: structuredClone(cur.opens ?? {}) }
+    : { signature, records: {}, opens: {} };
 }
 
-/** 발송 기록 지우기 (다시 시연할 때) */
+/** 보낸 것으로 기록한다 (시연) */
+export function recordSent(signature: string, items: { employeeId: string; channel: Channel }[]) {
+  const next = base(signature);
+  const at = new Date().toISOString();
+  for (const { employeeId, channel } of items) {
+    next.records[employeeId] = { ...next.records[employeeId], [channel]: { at } };
+  }
+  commit(next);
+}
+
+/** 직원이 명세서를 처음 열었다고 기록한다. 이미 기록이 있으면 바꾸지 않는다 */
+export function recordOpened(signature: string, employeeId: string) {
+  const next = base(signature);
+  if (next.opens[employeeId]) return;
+  next.opens[employeeId] = { at: new Date().toISOString() };
+  commit(next);
+}
+
+/** 발송·열람 기록 지우기 (다시 시연할 때) */
 export function clearSent() {
   commit(null);
 }

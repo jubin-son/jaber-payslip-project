@@ -139,7 +139,7 @@ export function PayslipsClient() {
                 {ok ? (
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/p/${e.id}`}>
+                      <Link href={`/p/${e.id}?preview=1`}>
                         명세서 열기
                       </Link>
                     </Button>

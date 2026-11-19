@@ -71,6 +71,7 @@ export function SendClient() {
   const ready = batch.employees.filter((e) => confirmed.has(e.id));
   const unconfirmed = batch.employees.length - ready.length;
   const records = sendState && sendState.signature === signature ? sendState.records : {};
+  const opens = sendState && sendState.signature === signature ? (sendState.opens ?? {}) : {};
   const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
 
   const pickOf = (e: EmployeePay): Pick => picks[e.id] ?? defaultPick(e);
@@ -86,6 +87,8 @@ export function SendClient() {
     CHANNELS.filter((c) => pickOf(e)[c] && availability(e, c).ok && !sentAt(e, c)).map((c) => ({ employeeId: e.id, channel: c })),
   );
   const alreadySent = ready.reduce((n, e) => n + CHANNELS.filter((c) => sentAt(e, c)).length, 0);
+  const sentPeople = ready.filter((e) => CHANNELS.some((c) => sentAt(e, c)));
+  const openedPeople = sentPeople.filter((e) => opens[e.id]);
 
   function toggle(e: EmployeePay, c: Channel) {
     const cur = pickOf(e);
@@ -132,12 +135,17 @@ export function SendClient() {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="귀속월" value={periodText(batch.payPeriod)} />
             <Stat label="지급일" value={dateText(batch.payDate)} warn={!batch.payDate} />
             <Stat label="발송 대상" value={`${ready.length}명`} sub={`직원 ${batch.employees.length}명 중 확인 완료`} />
             <Stat label="알림톡 가능" value={`${kakaoOk}명`} />
             <Stat label="메일 가능" value={`${mailOk}명`} />
+            <Stat
+              label="열람 확인"
+              value={sentPeople.length > 0 ? `${openedPeople.length}/${sentPeople.length}명` : "-"}
+              sub={sentPeople.length > 0 ? "발송한 직원 중" : "발송 후 표시돼요"}
+            />
           </dl>
 
           {!batch.payDate && (
@@ -214,6 +222,13 @@ export function SendClient() {
                       );
                     })}
                   </div>
+
+                  {CHANNELS.some((c) => sentAt(e, c)) &&
+                    (opens[e.id] ? (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400">✓ 열람 확인 · {fmtTime(opens[e.id].at)}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">아직 열어보지 않았어요</p>
+                    ))}
                 </li>
               );
             })}
@@ -234,7 +249,7 @@ export function SendClient() {
             <>
               <span className="text-sm text-muted-foreground">발송(시연) {alreadySent}건 기록됨</span>
               <Button variant="ghost" size="sm" onClick={clearSent}>
-                기록 지우기
+                발송·열람 기록 지우기
               </Button>
             </>
           )}
@@ -301,6 +316,8 @@ function Preview({ batch, employee: e }: { batch: PayrollBatch; employee: Employ
           ))}
         </div>
       </div>
+
+      <p className="text-xs text-muted-foreground">시연: 아래 버튼을 누르면 직원이 명세서를 연 것으로 기록돼요.</p>
 
       {tab === "kakao" ? (
         <div className="overflow-hidden rounded-xl border bg-background shadow-sm">
