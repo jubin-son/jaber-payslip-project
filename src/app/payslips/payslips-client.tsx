@@ -1,0 +1,181 @@
+"use client";
+// 4단계: 직원별 급여명세서 목록 + 미리보기.
+import Link from "next/link";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PayslipCard } from "./payslip-card";
+import { periodText, useReviewed, won } from "./use-reviewed";
+
+function Guide({ title, text, href, button }: { title: string; text: string; href: string; button: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{text}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild>
+          <Link href={href}>{button}</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function PayslipsClient() {
+  const reviewed = useReviewed();
+  const [batchIdx, setBatchIdx] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  if (reviewed.status === "loading") return <p className="text-muted-foreground">불러오는 중…</p>;
+  if (reviewed.status === "no-file") {
+    return (
+      <Guide
+        title="아직 명세서를 만들 파일이 없어요"
+        text="1단계에서 급여대장을 올리고 정리한 뒤, 3단계에서 확인하면 여기서 명세서가 만들어져요."
+        href="/upload"
+        button="파일 올리러 가기"
+      />
+    );
+  }
+  if (reviewed.status === "not-reviewed") {
+    return (
+      <Guide
+        title="먼저 3단계에서 확인해 주세요"
+        text="올린 파일을 담당자 확인·수정 화면에서 확인하면 명세서가 만들어져요."
+        href="/review"
+        button="담당자 확인·수정으로 가기"
+      />
+    );
+  }
+
+  const { batches, confirmed, errorCount } = reviewed;
+  const batch = batches[batchIdx] ?? batches[0];
+  if (!batch || batch.employees.length === 0) return <p className="text-muted-foreground">명세서를 만들 직원이 없어요.</p>;
+
+  // 명세서는 3단계에서 "확인 완료"한 직원만 만든다
+  const ready = batch.employees.filter((e) => confirmed.has(e.id));
+  const unconfirmed = batch.employees.length - ready.length;
+  const total = ready.reduce((n, e) => n + e.netPay, 0);
+
+  const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
+
+  async function copyLink(id: string) {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/p/${id}`);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
+    } catch {
+      // 복사 권한이 없으면 '명세서 열기'로 주소창에서 복사하면 된다
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {batches.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">사업장·귀속월</span>
+          {batches.map((b, i) => (
+            <Button key={b.id} size="sm" variant={b === batch ? "default" : "outline"} onClick={() => { setBatchIdx(i); setSelectedId(null); }}>
+              {b.companyName} · {b.payPeriod}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {ready.length === 0 && (
+        <Guide
+          title="아직 확인 완료한 직원이 없어요"
+          text={`${batch.companyName}의 직원 ${batch.employees.length}명을 3단계에서 확인 완료하면 명세서가 만들어져요.`}
+          href="/review"
+          button="담당자 확인·수정으로 가기"
+        />
+      )}
+      {ready.length > 0 && unconfirmed > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          {errorCount > 0 ? `3단계에 아직 오류가 ${errorCount}개 남아 있어요. ` : ""}
+          확인 완료하지 않은 직원 {unconfirmed}명은 명세서가 만들어지지 않았어요. 
+          <Link href="/review" className="font-medium underline underline-offset-2">
+            3단계로 돌아가기
+          </Link>
+        </div>
+      )}
+
+      {selected && (
+        <>
+      <Card>
+        <CardHeader>
+          <CardDescription>{periodText(batch.payPeriod)} 급여명세서</CardDescription>
+          <CardTitle className="text-xl">{batch.companyName}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+          <span>
+            명세서 <b>{ready.length}</b>장 <span className="text-muted-foreground">(직원 {batch.employees.length}명 중 확인 완료)</span>
+          </span>
+          <span>
+            실지급액 합계 <b>{won(total)}</b>
+          </span>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+        <ul className="flex flex-col gap-2">
+          {batch.employees.map((e) => {
+            const active = e.id === selected.id;
+            const ok = confirmed.has(e.id);
+            const hasError = e.issues.some((i) => i.level === "error");
+            return (
+              <li key={e.id} className={`flex flex-col gap-2 rounded-lg border p-3 ${active ? "border-foreground bg-muted" : ""}`}>
+                <button type="button" disabled={!ok} onClick={() => setSelectedId(e.id)} className="flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-medium">{e.name}</span>
+                    {hasError ? <Badge variant="destructive">오류</Badge> : ok ? <Badge variant="secondary">확인 완료</Badge> : <Badge variant="outline">확인 전</Badge>}
+                  </span>
+                  <span className="shrink-0 tabular-nums">{won(e.netPay)}</span>
+                </button>
+                {ok ? (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/p/${e.id}`}>
+                        명세서 열기
+                      </Link>
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => copyLink(e.id)}>
+                      {copiedId === e.id ? "복사됨 ✓" : "링크 복사"}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">3단계에서 확인 완료하면 명세서가 만들어져요.</p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted-foreground">미리보기 · 직원이 링크로 열면 이렇게 보여요</p>
+          <PayslipCard batch={batch} employee={selected} />
+        </div>
+      </div>
+
+        </>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        지금은 이 브라우저 탭 안에서만 링크가 열려요. 다른 기기에서도 열리게 하려면 저장소(Supabase) 연결이 필요해요.
+      </p>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+        <Button variant="outline" asChild>
+          <Link href="/review">← 담당자 확인·수정</Link>
+        </Button>
+        <Button asChild>
+          <Link href="/send">다음: 발송 →</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
