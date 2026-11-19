@@ -1,0 +1,345 @@
+"use client";
+// 5단계: 발송 화면 (시연 수준). 3단계에서 확인 완료한 직원만 대상이 된다.
+// 실제로 알림톡·메일을 보내지는 않고, '보낸 것으로 기록'만 남긴다.
+import Link from "next/link";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { dateText, periodText, useReviewed } from "@/app/payslips/use-reviewed";
+import type { EmployeePay, PayrollBatch } from "@/types/payroll";
+import { availability, CHANNEL_LABEL, defaultPick, maskEmail, maskPhone, type Channel, type Pick } from "./channels";
+import { clearSent, recordSent, useSendState } from "./send-store";
+
+const CHANNELS: Channel[] = ["kakao", "mail"];
+
+/** "11. 19. 14:32" */
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+
+function Guide({ title, text, href, button }: { title: string; text: string; href: string; button: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{text}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild>
+          <Link href={href}>{button}</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SendClient() {
+  const reviewed = useReviewed();
+  const sendState = useSendState();
+  const [batchIdx, setBatchIdx] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [picks, setPicks] = useState<Record<string, Pick>>({});
+  const [sending, setSending] = useState(false);
+
+  if (reviewed.status === "loading") return <p className="text-muted-foreground">불러오는 중…</p>;
+  if (reviewed.status === "no-file") {
+    return (
+      <Guide
+        title="아직 발송할 파일이 없어요"
+        text="1단계에서 급여대장을 올리고, 3단계에서 확인한 뒤 명세서를 만들면 여기서 발송할 수 있어요."
+        href="/upload"
+        button="파일 올리러 가기"
+      />
+    );
+  }
+  if (reviewed.status === "not-reviewed") {
+    return (
+      <Guide
+        title="먼저 3단계에서 확인해 주세요"
+        text="올린 파일을 담당자 확인·수정 화면에서 확인하면 발송할 수 있어요."
+        href="/review"
+        button="담당자 확인·수정으로 가기"
+      />
+    );
+  }
+
+  const { batches, confirmed, signature } = reviewed;
+  const batch: PayrollBatch | undefined = batches[batchIdx] ?? batches[0];
+  if (!batch || batch.employees.length === 0) return <p className="text-muted-foreground">발송할 직원이 없어요.</p>;
+
+  // 발송은 3단계에서 "확인 완료"한 직원만 대상이다
+  const ready = batch.employees.filter((e) => confirmed.has(e.id));
+  const unconfirmed = batch.employees.length - ready.length;
+  const records = sendState && sendState.signature === signature ? sendState.records : {};
+  const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
+
+  const pickOf = (e: EmployeePay): Pick => picks[e.id] ?? defaultPick(e);
+  const sentAt = (e: EmployeePay, c: Channel) => records[e.id]?.[c]?.at;
+
+  // 확인 카드 숫자
+  const kakaoOk = ready.filter((e) => availability(e, "kakao").ok).length;
+  const mailOk = ready.filter((e) => availability(e, "mail").ok).length;
+  const noWay = ready.filter((e) => !availability(e, "kakao").ok && !availability(e, "mail").ok);
+
+  // 이번에 보낼 것: 선택했고, 보낼 수 있고, 아직 안 보낸 것
+  const toSend = ready.flatMap((e) =>
+    CHANNELS.filter((c) => pickOf(e)[c] && availability(e, c).ok && !sentAt(e, c)).map((c) => ({ employeeId: e.id, channel: c })),
+  );
+  const alreadySent = ready.reduce((n, e) => n + CHANNELS.filter((c) => sentAt(e, c)).length, 0);
+
+  function toggle(e: EmployeePay, c: Channel) {
+    const cur = pickOf(e);
+    setPicks((p) => ({ ...p, [e.id]: { ...cur, [c]: !cur[c] } }));
+  }
+
+  function send() {
+    if (toSend.length === 0 || sending) return;
+    setSending(true);
+    // 시연: 실제 발송 대신 잠깐 기다렸다가 보낸 것으로 기록한다
+    setTimeout(() => {
+      recordSent(signature, toSend);
+      setSending(false);
+    }, 900);
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {batches.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">사업장·귀속월</span>
+          {batches.map((b, i) => (
+            <Button
+              key={b.id}
+              size="sm"
+              variant={b === batch ? "default" : "outline"}
+              onClick={() => {
+                setBatchIdx(i);
+                setSelectedId(null);
+              }}
+            >
+              {b.companyName} · {b.payPeriod}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* 확인 카드: 보내기 전에 한 번 더 볼 것들 */}
+      <Card>
+        <CardHeader>
+          <CardDescription>발송 전 확인</CardDescription>
+          <CardTitle className="text-xl">
+            {batch.companyName} · {periodText(batch.payPeriod)} 급여명세서
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+            <Stat label="귀속월" value={periodText(batch.payPeriod)} />
+            <Stat label="지급일" value={dateText(batch.payDate)} warn={!batch.payDate} />
+            <Stat label="발송 대상" value={`${ready.length}명`} sub={`직원 ${batch.employees.length}명 중 확인 완료`} />
+            <Stat label="알림톡 가능" value={`${kakaoOk}명`} />
+            <Stat label="메일 가능" value={`${mailOk}명`} />
+          </dl>
+
+          {!batch.payDate && (
+            <Notice>
+              지급일이 비어 있어요. 안내에 &lsquo;지급일 미정&rsquo;으로 나가니, 3단계에서 지급일을 입력하는 게 좋아요.{" "}
+              <Link href="/review" className="font-medium underline underline-offset-2">
+                3단계로 가기
+              </Link>
+            </Notice>
+          )}
+          {unconfirmed > 0 && (
+            <Notice>
+              3단계에서 확인 완료하지 않은 직원 {unconfirmed}명은 발송 대상에서 빠져요.{" "}
+              <Link href="/review" className="font-medium underline underline-offset-2">
+                3단계로 가기
+              </Link>
+            </Notice>
+          )}
+          {noWay.length > 0 && (
+            <Notice>
+              알림톡·메일 어느 쪽으로도 보낼 수 없는 직원이 {noWay.length}명 있어요: {noWay.map((e) => e.name).join(", ")}. 자버 직원연락처
+              매칭을 확인해 주세요.
+            </Notice>
+          )}
+        </CardContent>
+      </Card>
+
+      {ready.length === 0 ? (
+        <Guide
+          title="아직 확인 완료한 직원이 없어요"
+          text={`${batch.companyName}의 직원 ${batch.employees.length}명을 3단계에서 확인 완료하면 발송할 수 있어요.`}
+          href="/review"
+          button="담당자 확인·수정으로 가기"
+        />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+          {/* 직원별 채널 선택 */}
+          <ul className="flex flex-col gap-2">
+            {ready.map((e) => {
+              const pick = pickOf(e);
+              const active = selected?.id === e.id;
+              return (
+                <li key={e.id} className={`flex flex-col gap-2 rounded-lg border p-3 ${active ? "border-foreground bg-muted" : ""}`}>
+                  <button type="button" onClick={() => setSelectedId(e.id)} className="flex flex-wrap items-center justify-between gap-2 text-left">
+                    <span className="flex items-center gap-2">
+                      <span className="font-medium">{e.name}</span>
+                      <MatchBadge e={e} />
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {e.match?.status === "matched" ? `${maskPhone(e.match.phone)} · ${maskEmail(e.match.email)}` : "연락처 없음"}
+                    </span>
+                  </button>
+
+                  <div className="flex flex-wrap gap-2">
+                    {CHANNELS.map((c) => {
+                      const av = availability(e, c);
+                      const sent = sentAt(e, c);
+                      return (
+                        <div key={c} className="flex flex-col gap-0.5">
+                          <Button
+                            size="sm"
+                            variant={pick[c] && av.ok ? "default" : "outline"}
+                            aria-pressed={pick[c] && av.ok}
+                            disabled={!av.ok || !!sent}
+                            onClick={() => toggle(e, c)}
+                          >
+                            {sent ? "✓ " : ""}
+                            {CHANNEL_LABEL[c]}
+                          </Button>
+                          <span className="text-[11px] text-muted-foreground">
+                            {sent ? `${fmtTime(sent)} 발송(시연)` : av.ok ? (pick[c] ? "보낼 예정" : "보내지 않음") : av.reason}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* 미리보기 */}
+          {selected && <Preview batch={batch} employee={selected} />}
+        </div>
+      )}
+
+      {/* 발송 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+        <Button variant="outline" asChild>
+          <Link href="/payslips">← 직원별 명세서</Link>
+        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          {alreadySent > 0 && (
+            <>
+              <span className="text-sm text-muted-foreground">발송(시연) {alreadySent}건 기록됨</span>
+              <Button variant="ghost" size="sm" onClick={clearSent}>
+                기록 지우기
+              </Button>
+            </>
+          )}
+          <Button disabled={toSend.length === 0 || sending} onClick={send}>
+            {sending ? "발송 중…" : toSend.length > 0 ? `${toSend.length}건 발송하기 (시연)` : "보낼 대상이 없어요"}
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        시연이라 실제 알림톡·메일은 나가지 않아요. 명세서 링크는 지금은 같은 브라우저 탭 안에서만 열려요. 다른 기기에서도 열리게 하려면 저장소(Supabase)
+        연결이 필요해요.
+      </p>
+    </div>
+  );
+}
+
+// ---------- 조각들 ----------
+
+function Stat({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
+  return (
+    <div className={`flex flex-col gap-0.5 rounded-lg border p-2 ${warn ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40" : ""}`}>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="font-medium">{value}</dd>
+      {sub && <span className="text-[11px] text-muted-foreground">{sub}</span>}
+    </div>
+  );
+}
+
+function Notice({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+      {children}
+    </div>
+  );
+}
+
+function MatchBadge({ e }: { e: EmployeePay }) {
+  const m = e.match;
+  if (!m || m.status === "not_found") return <Badge variant="destructive">자버 직원 못 찾음</Badge>;
+  if (m.status === "ambiguous") return <Badge variant="outline">후보 {m.candidates?.length ?? 0}명</Badge>;
+  return (
+    <>
+      <Badge variant="secondary">자버 {m.memberId}</Badge>
+      {m.kakaoConsent === false && <Badge variant="outline">알림톡 미동의</Badge>}
+    </>
+  );
+}
+
+/** 받는 사람이 보게 될 알림톡·메일 미리보기 */
+function Preview({ batch, employee: e }: { batch: PayrollBatch; employee: EmployeePay }) {
+  const [tab, setTab] = useState<Channel>("kakao");
+  const link = `${window.location.origin}/p/${e.id}`;
+  const period = periodText(batch.payPeriod);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-muted-foreground">미리보기 · {e.name}님이 받는 모양</p>
+        <div className="ml-auto flex gap-1">
+          {CHANNELS.map((c) => (
+            <Button key={c} size="sm" variant={tab === c ? "default" : "outline"} onClick={() => setTab(c)}>
+              {CHANNEL_LABEL[c]}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {tab === "kakao" ? (
+        <div className="overflow-hidden rounded-xl border bg-background shadow-sm">
+          <div className="bg-[#FEE500] px-4 py-2 text-xs font-medium text-black">알림톡 도착</div>
+          <div className="flex flex-col gap-3 px-4 py-4 text-sm">
+            <p className="font-semibold">[{batch.companyName}] 급여명세서 안내</p>
+            <p>
+              {e.name}님, {period} 급여명세서가 도착했어요.
+            </p>
+            <p className="text-muted-foreground">지급일: {dateText(batch.payDate)}</p>
+            <a href={link} className="rounded-md border bg-muted px-3 py-2 text-center font-medium hover:bg-muted/70">
+              명세서 확인하기
+            </a>
+            <p className="text-xs text-muted-foreground">이 메시지는 급여명세서 수신에 동의하신 분께 발송돼요.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border bg-background shadow-sm">
+          <dl className="grid grid-cols-[64px_1fr] gap-x-2 gap-y-1 border-b bg-muted/50 px-4 py-3 text-xs">
+            <dt className="text-muted-foreground">받는 사람</dt>
+            <dd>{e.match?.email ?? "메일 주소 없음"}</dd>
+            <dt className="text-muted-foreground">제목</dt>
+            <dd className="font-medium">
+              [{batch.companyName}] {period} 급여명세서
+            </dd>
+          </dl>
+          <div className="flex flex-col gap-3 px-4 py-4 text-sm">
+            <p>안녕하세요, {e.name}님.</p>
+            <p>
+              {period} 급여명세서를 보내드려요. 아래 버튼을 누르면 지급·공제 내역을 확인할 수 있어요. (지급일 {dateText(batch.payDate)})
+            </p>
+            <a href={link} className="rounded-md border bg-muted px-3 py-2 text-center font-medium hover:bg-muted/70">
+              명세서 보기
+            </a>
+            <p className="text-xs text-muted-foreground">명세서 화면에서 &lsquo;PDF로 저장&rsquo;을 눌러 파일로 보관할 수도 있어요.</p>
+            <p className="text-xs text-muted-foreground">문의는 급여 담당자에게 해 주세요.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

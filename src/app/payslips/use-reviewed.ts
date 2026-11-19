@@ -24,6 +24,8 @@ export type Reviewed =
   | { status: "not-reviewed" }
   | {
       status: "ready";
+      /** 어떤 파일의 결과인지 알아보는 표식 (다른 파일을 올리면 달라진다) */
+      signature: string;
       /** 담당자가 고친 값이 반영된 사업장·귀속월별 데이터 */
       batches: PayrollBatch[];
       /** 3단계에서 확인 완료한 직원 id */
@@ -45,7 +47,7 @@ export function useReviewed(): Reviewed {
     (n, b) => n + [...b.issues, ...b.employees.flatMap((e) => e.issues)].filter((i) => i.level === "error").length,
     0,
   );
-  return { status: "ready", batches: state.batches, confirmed: new Set(state.confirmed), errorCount };
+  return { status: "ready", signature: state.signature, batches: state.batches, confirmed: new Set(state.confirmed), errorCount };
 }
 
 // ---------- 표시용 도우미 ----------
