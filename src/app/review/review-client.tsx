@@ -169,6 +169,23 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
     [...e.earnings, ...e.deductions].filter((i) => i.edited).length + Object.keys(totalsBefore[e.id] ?? {}).length;
   const editedCount = batch ? batch.employees.reduce((n, e) => n + editsOf(e), 0) : 0;
 
+  /** 이 사업장에서 확인 완료한 직원 수 (다른 사업장 직원은 세지 않는다) */
+  const confirmedHere = batch ? batch.employees.filter((e) => confirmed.has(e.id)).length : 0;
+  /** 한꺼번에 확인 완료할 수 있는 직원: 오류도 확인 필요도 없는 사람만. 문제가 있는 직원은 직접 보고 확인한다 */
+  const clean = (e: EmployeePay) => !e.issues.some((i) => i.level === "error" || i.level === "warning");
+  const bulkTargets = batch ? batch.employees.filter((e) => !confirmed.has(e.id) && clean(e)) : [];
+  const needLook = batch ? batch.employees.filter((e) => !confirmed.has(e.id) && !clean(e)).length : 0;
+
+  function confirmAllClean() {
+    const ids = bulkTargets.map((e) => e.id);
+    updateReview((s) => ({ ...s, confirmed: [...new Set([...s.confirmed, ...ids])] }));
+  }
+
+  function unconfirmAll() {
+    const ids = new Set(batch.employees.map((e) => e.id));
+    updateReview((s) => ({ ...s, confirmed: s.confirmed.filter((c) => !ids.has(c)) }));
+  }
+
   function resetAll() {
     if (history.length > 0 && !window.confirm("지금까지 고친 내용과 수정 기록이 모두 지워져요. 계속할까요?")) return;
     resetReview(result);
@@ -338,7 +355,7 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
               직원 <b>{batch.employees.length}</b>명
             </span>
             <span>
-              확인 완료 <b>{confirmed.size}</b>/{batch.employees.length}
+              확인 완료 <b>{confirmedHere}</b>/{batch.employees.length}
             </span>
             <span className="text-red-600 dark:text-red-400">
               오류 <b>{errorCount}</b>
@@ -349,6 +366,19 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
             <span className={EDITED_TEXT}>
               고친 칸 <b>{editedCount}</b>
             </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Button size="sm" disabled={bulkTargets.length === 0} onClick={confirmAllClean}>
+              문제 없는 직원 모두 확인 완료{bulkTargets.length > 0 ? ` (${bulkTargets.length}명)` : ""}
+            </Button>
+            {confirmedHere > 0 && (
+              <Button size="sm" variant="outline" onClick={unconfirmAll}>
+                확인 모두 취소
+              </Button>
+            )}
+            {needLook > 0 && (
+              <span className="text-muted-foreground">오류·확인 필요가 있는 {needLook}명은 직접 확인해 주세요.</span>
+            )}
           </div>
           <label className="flex flex-wrap items-center gap-2 text-sm">
             <span className="w-14 text-muted-foreground">지급일</span>
