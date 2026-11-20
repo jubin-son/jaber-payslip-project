@@ -13,6 +13,7 @@ import {
   findYear,
   looksLikeName,
   parseAmount,
+  personDate,
   parseQuantity,
 } from "./values";
 import { checkEmployee } from "./checks";
@@ -276,6 +277,15 @@ function readRow(g: Grid, r: number, h: Header, roles: (ColumnRole | undefined)[
         return;
       case "position":
         if (typeof v === "string" && v.trim()) e.position = v.trim();
+        return;
+      case "employeeNo":
+        if (v !== null && String(v).trim()) e.employeeNo = String(v).trim();
+        return;
+      case "birthDate":
+        if (v !== null && String(v).trim()) e.birthDate = personDate(v);
+        return;
+      case "hireDate":
+        if (v !== null && String(v).trim()) e.hireDate = personDate(v);
         return;
       case "payPeriod":
         if (v !== null) period = findPeriod(String(v));

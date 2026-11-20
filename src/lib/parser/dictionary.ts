@@ -17,6 +17,9 @@ export type ColumnRole =
   | { kind: "employmentType" }
   | { kind: "department" }
   | { kind: "position" }
+  | { kind: "employeeNo" }
+  | { kind: "birthDate" }
+  | { kind: "hireDate" }
   | { kind: "payPeriod" }
   | { kind: "payDate" }
   | { kind: "ignore" };
@@ -70,13 +73,16 @@ const TABLE: [string[], ColumnRole][] = [
   [["구분", "급여형태", "근무형태", "paytype", "임금형태"], { kind: "employmentType" }],
   [["부서"], { kind: "department" }],
   [["직위", "직무", "직종", "position", "과목"], { kind: "position" }],
+  [["사원코드", "사번", "empno", "사원번호"], { kind: "employeeNo" }],
+  [["생년월일", "dob", "생일"], { kind: "birthDate" }],
+  [["입사일", "입사일자", "입사"], { kind: "hireDate" }],
   [["payperiod", "귀속월"], { kind: "payPeriod" }],
   [["paydate"], { kind: "payDate" }],
 
   // 금액이 아닌 열
   [
     [
-      "사원코드", "사번", "no", "empno", "생년월일", "dob", "입사일", "입사", "퇴사일", "비고", "메모",
+      "no", "퇴사일", "비고", "메모",
       "근무일자", "일당", "비과세", "과세소득", "주시간", "주근무시간", "주휴시간", "야간시간", "휴일시간", "휴일근로시간",
       "휴일", "야간", "nighthrs", "정상", "나하고전송현황", "항목",
     ],

@@ -31,6 +31,9 @@ export type EmployeePay = {
   employmentType?: "정규" | "시급" | "일용" | "강사" | "기타";
   department?: string;
   position?: string;
+  employeeNo?: string; // 사번 (원본 표기 그대로, 같은 이름 구분용)
+  birthDate?: string; // 생년월일 "1990-03-12" (읽을 수 없는 표기는 원본 그대로)
+  hireDate?: string; // 입사일 "2023-04-01" (읽을 수 없는 표기는 원본 그대로)
   match?: EmployeeMatch; // 자버 직원연락처 매칭 결과
   earnings: PayItem[];
   deductions: PayItem[];
