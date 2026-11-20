@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PayslipCard } from "./payslip-card";
-import { periodText, useReviewed, won } from "./use-reviewed";
+import { identityParts, periodText, useReviewed, won } from "./use-reviewed";
 
 function Guide({ title, text, href, button }: { title: string; text: string; href: string; button: string }) {
   return (
@@ -136,6 +136,7 @@ export function PayslipsClient() {
                   </span>
                   <span className="shrink-0 tabular-nums">{won(e.netPay)}</span>
                 </button>
+                {identityParts(e).length > 0 && <p className="text-xs text-muted-foreground">{identityParts(e).join(" · ")}</p>}
                 {ok ? (
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" asChild>
