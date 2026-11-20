@@ -313,7 +313,10 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
 
   return (
     <div className="flex flex-col gap-5">
-      {/* 맨 위: 숫자 오류 의심 내역 */}
+      {/* 맨 위: 이번 달 총 인건비 */}
+      <TotalCostSummary batches={batches} />
+
+      {/* 숫자 오류 의심 내역 */}
       <SuspectBanner batches={batches} onPick={selectEmployee} />
 
       <div className="grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_420px]">
@@ -434,6 +437,49 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
         )}
       </div>
     </div>
+  );
+}
+
+// ---------- 총 인건비 ----------
+
+/** 사업장·귀속월마다 이번 달 인건비가 얼마나 나가는지. 고친 값이 바로 반영된다 */
+function TotalCostSummary({ batches }: { batches: PayrollBatch[] }) {
+  const sumOf = (b: PayrollBatch, f: "totalEarnings" | "totalDeductions" | "netPay") => b.employees.reduce((n, e) => n + e[f], 0);
+  const grand = batches.reduce((n, b) => n + sumOf(b, "totalEarnings"), 0);
+  return (
+    <section aria-label="총 인건비" className="rounded-2xl bg-white px-5 py-4 shadow-[0_4px_24px_rgba(0,0,0,0.05)] ring-1 ring-neutral-200/70">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="font-bold">이번 달 총 인건비</h2>
+        {batches.length > 1 && (
+          <p className="text-sm text-muted-foreground">
+            전체 <b className="text-base text-foreground tabular-nums">{won(grand)}원</b>
+          </p>
+        )}
+      </div>
+      <ul className="mt-3 flex flex-col divide-y">
+        {batches.map((b) => (
+          <li key={b.id} className="grid grid-cols-2 items-baseline gap-x-4 gap-y-1 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_repeat(3,auto)] sm:gap-x-8">
+            <span className="col-span-2 truncate font-medium sm:col-span-1">
+              {b.companyName} · {b.payPeriod}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">{b.employees.length}명</span>
+            </span>
+            <span className="sm:text-right">
+              <span className="block text-xs text-muted-foreground">총 인건비 (지급합계)</span>
+              <b className="text-lg tabular-nums">{won(sumOf(b, "totalEarnings"))}원</b>
+            </span>
+            <span className="sm:text-right">
+              <span className="block text-xs text-muted-foreground">공제합계</span>
+              <span className="tabular-nums">{won(sumOf(b, "totalDeductions"))}원</span>
+            </span>
+            <span className="sm:text-right">
+              <span className="block text-xs text-muted-foreground">직원 실지급액</span>
+              <span className="tabular-nums">{won(sumOf(b, "netPay"))}원</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-xs text-muted-foreground">직원에게 지급하는 금액의 합이에요. 회사가 따로 내는 4대보험 사업주 부담분은 포함되지 않아요.</p>
+    </section>
   );
 }
 
