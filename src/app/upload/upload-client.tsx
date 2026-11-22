@@ -38,6 +38,17 @@ export function UploadClient() {
     itemsRef.current = items;
   }, [items]);
 
+  // 화면에 들어오자마자 미리 준비해 둔다: 다음 화면(확인·수정)과 PDF 읽기 도구.
+  // PDF 읽기 도구는 처음 불러올 때 1초 넘게 걸려서, 파일을 올린 뒤가 아니라 지금 불러 둔다.
+  useEffect(() => {
+    router.prefetch("/review");
+    import("@/lib/parser/pdf-table")
+      .then((m) => m.preloadPdfReader())
+      .catch(() => {
+        // 미리 못 불러와도 PDF를 올릴 때 다시 불러온다
+      });
+  }, [router]);
+
   const addFiles = useCallback(async (files: FileList | File[]) => {
     const seen = new Set(itemsRef.current.map((it) => fileKey(it.name, it.size)));
     const skipped: string[] = [];
@@ -102,9 +113,8 @@ export function UploadClient() {
   /** 명세서 변환: 2단계 정리(열 분류·금액 추출·검산)를 화면 없이 돌리고 확인·수정 화면으로 간다 */
   async function convert() {
     setConverting(true);
-    // 팝업이 먼저 그려지도록 한 박자 쉰다
-    await new Promise((r) => setTimeout(r, 50));
-    const started = Date.now();
+    // 팝업이 화면에 한 번 그려진 다음에 계산을 시작한다(두 프레임만 기다리고, 고정 대기 시간은 두지 않는다)
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     try {
       const result = extractFiles(done.map((i) => i.file!));
       if (result.batches.length === 0) {
@@ -114,9 +124,7 @@ export function UploadClient() {
         return;
       }
       saveParseResult(result);
-      // 너무 빨리 넘어가면 팝업이 깜빡이기만 해서, 잠깐은 보여준다
-      const rest = 700 - (Date.now() - started);
-      if (rest > 0) await new Promise((r) => setTimeout(r, rest));
+      // 팝업은 확인·수정 화면이 뜰 때까지 그대로 둔다(converting을 끄지 않음)
       router.push("/review");
     } catch (e) {
       console.error("명세서 변환 실패:", e);

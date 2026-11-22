@@ -94,7 +94,9 @@ function median(ns: number[]): number | undefined {
 export async function readPdfSheets(bytes: Uint8Array): Promise<RawSheet[]> {
   const pdfjs = await loadPdfjs();
   // pdf.js가 버퍼를 넘겨받아 비우므로 복사본을 넘긴다(원본은 pdfBytes로 보관)
-  const doc = await pdfjs.getDocument({ data: bytes.slice(), useSystemFonts: true, isEvalSupported: false }).promise;
+  // 브라우저에서는 미리 띄워 둔 일꾼을 같이 쓴다(doc.destroy()가 남이 넘긴 일꾼은 끄지 않는다). Node는 일꾼 없이 돈다
+  const worker = typeof window === "undefined" ? undefined : await sharedWorker();
+  const doc = await pdfjs.getDocument({ data: bytes.slice(), useSystemFonts: true, isEvalSupported: false, worker }).promise;
   const sheets: RawSheet[] = [];
   try {
     for (let p = 1; p <= doc.numPages; p++) {
@@ -115,8 +117,44 @@ export async function readPdfSheets(bytes: Uint8Array): Promise<RawSheet[]> {
 }
 
 type Pdfjs = typeof import("pdfjs-dist");
+type PdfWorker = InstanceType<Pdfjs["PDFWorker"]>;
 
-async function loadPdfjs(): Promise<Pdfjs> {
+let pdfjsPromise: Promise<Pdfjs> | null = null;
+let workerPromise: Promise<PdfWorker> | null = null;
+
+/**
+ * 브라우저: PDF 읽기 도구와 일꾼(worker)을 미리 띄워 둔다. 업로드 화면에 들어올 때 부른다.
+ * 처음 한 번만 실제로 불러오고, 이후 PDF는 같은 일꾼을 다시 쓴다.
+ */
+export async function preloadPdfReader(): Promise<void> {
+  if (typeof window === "undefined") return;
+  await sharedWorker();
+}
+
+function sharedWorker(): Promise<PdfWorker> {
+  workerPromise ??= loadPdfjs()
+    .then(async (pdfjs) => {
+      const worker = new pdfjs.PDFWorker();
+      await worker.promise;
+      return worker;
+    })
+    .catch((e) => {
+      // 실패하면 다음에 다시 시도할 수 있게 비워 둔다
+      workerPromise = null;
+      throw e;
+    });
+  return workerPromise;
+}
+
+function loadPdfjs(): Promise<Pdfjs> {
+  pdfjsPromise ??= importPdfjs().catch((e) => {
+    pdfjsPromise = null;
+    throw e;
+  });
+  return pdfjsPromise;
+}
+
+async function importPdfjs(): Promise<Pdfjs> {
   if (typeof window === "undefined") {
     // Node(확인용 스크립트): 일꾼(worker) 없이 도는 legacy 빌드
     return (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as Pdfjs;
