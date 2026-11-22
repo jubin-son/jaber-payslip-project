@@ -65,3 +65,12 @@ export function dateText(d?: string): string {
   const m = d ? /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(d) : null;
   return m ? `${m[1]}년 ${Number(m[2])}월 ${Number(m[3])}일` : "미정";
 }
+
+/** 같은 이름을 구분하는 정보 "사번 A001 · 생년월일 1990-03-12 · 입사일 2023-04-01" (있는 것만) */
+export function identityParts(e: { employeeNo?: string; birthDate?: string; hireDate?: string }): string[] {
+  return [
+    e.employeeNo ? `사번 ${e.employeeNo}` : "",
+    e.birthDate ? `생년월일 ${e.birthDate}` : "",
+    e.hireDate ? `입사일 ${e.hireDate}` : "",
+  ].filter(Boolean);
+}

@@ -118,3 +118,10 @@ export function looksLikeName(v: CellValue): v is string {
   if (/^\d+(일|시간)?$/.test(s) || /^\d+:\d+$/.test(s)) return false;
   return /^[가-힣]{2,5}$/.test(s.replace(/\s/g, "")) || /^[A-Za-z][A-Za-z .'-]+$/.test(s);
 }
+
+/** 생년월일·입사일: "1990.03.12", "1990-3-12", "19900312" → "1990-03-12". 읽을 수 없는 표기("900312" 등)는 원본 그대로 */
+export function personDate(v: unknown): string {
+  const s = String(v).trim();
+  const m = s.match(/^((?:19|20)\d{2})\s*[년.\-/]\s*(\d{1,2})\s*[월.\-/]\s*(\d{1,2})/) ?? s.match(/^((?:19|20)\d{2})(\d{2})(\d{2})$/);
+  return m ? `${m[1]}-${pad(+m[2])}-${pad(+m[3])}` : s;
+}
