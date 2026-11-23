@@ -17,6 +17,7 @@ import {
   parseQuantity,
 } from "./values";
 import { checkEmployee } from "./checks";
+import { matchJaber } from "@/lib/jaber-match";
 
 // ---------- 결과 보고용 타입 (스키마 밖, 2단계 화면에서 씀) ----------
 
@@ -593,6 +594,8 @@ export function extractFiles(files: RawFile[]): ParseResult {
     result.tables.push(...r.tables);
     result.skipped.push(...r.skipped);
   });
+  // 자버 등록 정보(사업장·직원)와 맞춰 연락처·수신동의를 붙인다
+  matchJaber(result.batches);
   return result;
 }
 
