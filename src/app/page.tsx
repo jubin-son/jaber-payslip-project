@@ -49,9 +49,14 @@ const payrollServices: Service[] = [
       "직원 연락처와 자동으로 이어드려요",
       "수신동의 여부까지 발송 전에 확인하세요",
     ],
-    tags: [{ label: "이름 매칭" }, { label: "연락처 확인" }, { label: "수신동의" }],
-    cta: "준비 중",
-    soon: true,
+    // 임직원 관리에 등록한 명부로 급여대장을 올릴 때 자동으로 매칭한다
+    tags: [
+      { label: "임직원 등록", href: "/employees" },
+      { label: "이름 매칭", href: "/review" },
+      { label: "수신동의", href: "/send" },
+    ],
+    href: "/employees",
+    cta: "임직원 관리",
   },
 ];
 
