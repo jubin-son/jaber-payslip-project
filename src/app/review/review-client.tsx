@@ -28,7 +28,7 @@ import {
 } from "@/types/payroll";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PayslipCard } from "@/app/payslips/payslip-card";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
@@ -173,11 +173,22 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
   const editsOf = (e: EmployeePay) =>
     [...e.earnings, ...e.deductions].filter((i) => i.edited).length + Object.keys(totalsBefore[e.id] ?? {}).length;
 
-  /** 한꺼번에 확인 완료할 수 있는 직원: 오류도 확인 필요도 없는 사람만. 문제가 있는 직원은 직접 보고 확인한다 */
-  const clean = (e: EmployeePay) => !e.issues.some((i) => i.level === "error" || i.level === "warning");
-  const everyone = batches.flatMap((b) => b.employees);
+  /** 한꺼번에 확인 완료할 수 있는 직원: 오류가 없는 사람. 확인 필요(경고)는 보고 넘어갈 수 있으니 포함한다 */
+  const clean = (e: EmployeePay) => !e.issues.some((i) => i.level === "error");
+  /** 귀속월별로 나눠서 보여 준다. 고른 월의 사업장(배치)만 왼쪽 목록에 나온다 */
+  const months = [...new Set(batches.map((b) => b.payPeriod))].sort();
+  const activeMonth = batch?.payPeriod;
+  const monthBatches = batches.map((b, bi) => ({ b, bi })).filter(({ b }) => b.payPeriod === activeMonth);
+  const everyone = monthBatches.flatMap(({ b }) => b.employees);
   const bulkTargets = everyone.filter((e) => !confirmed.has(e.id) && clean(e));
   const confirmedAll = everyone.filter((e) => confirmed.has(e.id)).length;
+
+  /** 다른 월을 고르면 그 월의 첫 사업장·첫 직원으로 옮긴다 */
+  function selectMonth(period: string) {
+    const bi = batches.findIndex((b) => b.payPeriod === period);
+    if (bi < 0 || bi === state.activeBatch) return;
+    updateReview((s) => ({ ...s, activeBatch: bi, selectedId: s.batches[bi]?.employees[0]?.id ?? "" }));
+  }
 
   function confirmAllClean() {
     const ids = bulkTargets.map((e) => e.id);
@@ -331,21 +342,14 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
   }
 
 
-  function toggleConfirmed(id: string) {
-    updateReview((s) => ({
-      ...s,
-      confirmed: s.confirmed.includes(id) ? s.confirmed.filter((c) => c !== id) : [...s.confirmed, id],
-    }));
-  }
-
   if (!batch || !selected) {
     return <p className="text-muted-foreground">직원 데이터가 없어요.</p>;
   }
 
   return (
     <div className="flex flex-col gap-5">
-      {/* 맨 위: 이번 달 총 인건비 */}
-      <TotalCostSummary batches={batches} />
+      {/* 맨 위: 월별 인건비 (누르면 그 월의 직원 목록으로 바뀐다) */}
+      <MonthTabs batches={batches} months={months} active={activeMonth} confirmed={confirmed} onPick={selectMonth} />
 
       {/* 숫자 오류 의심 내역 */}
       <SuspectBanner batches={batches} onPick={selectEmployee} />
@@ -354,13 +358,15 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
         {/* 왼쪽: 인식한 임직원 목록 */}
         <aside className="flex flex-col gap-3 lg:sticky lg:top-24">
           <div className="flex items-baseline justify-between px-1">
-            <h2 className="font-bold">임직원 {everyone.length}명</h2>
+            <h2 className="font-bold">
+              {fmtMonth(activeMonth)} 임직원 {everyone.length}명
+            </h2>
             <span className="text-xs text-muted-foreground">
               확인 {confirmedAll}/{everyone.length}
             </span>
           </div>
           <nav aria-label="직원 목록" className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto rounded-3xl bg-white p-3 shadow-[0_4px_24px_rgba(0,0,0,0.05)] ring-1 ring-neutral-200/70">
-            {batches.map((b, bi) => (
+            {monthBatches.map(({ b, bi }) => (
               <div key={b.id} className="flex flex-col gap-1">
                 <p className="truncate px-2 pt-1 text-xs font-semibold text-muted-foreground" title={b.sourceFile}>
                   {b.companyName} · {b.payPeriod}
@@ -393,7 +399,7 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
             ))}
           </nav>
           <Button variant="outline" size="sm" disabled={bulkTargets.length === 0} onClick={confirmAllClean}>
-            문제 없는 직원 모두 확인{bulkTargets.length > 0 ? ` (${bulkTargets.length}명)` : ""}
+            오류 없는 직원 모두 확인{bulkTargets.length > 0 ? ` (${bulkTargets.length}명)` : ""}
           </Button>
         </aside>
 
@@ -423,13 +429,11 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
             sourceFile={batch.sourceFile}
             totalsBefore={totalsBefore[selected.id] ?? {}}
             history={history.filter((h) => h.employeeId === selected.id)}
-            isConfirmed={confirmed.has(selected.id)}
             onAmount={setItemAmount}
             onAdd={addItem}
             onRemove={removeItem}
             onCategory={setItemCategory}
             onTotal={setTotal}
-            onToggleConfirmed={() => toggleConfirmed(selected.id)}
           />
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -473,45 +477,66 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
   );
 }
 
-// ---------- 총 인건비 ----------
+// ---------- 월별 인건비 ----------
 
-/** 사업장·귀속월마다 이번 달 인건비가 얼마나 나가는지. 고친 값이 바로 반영된다 */
-function TotalCostSummary({ batches }: { batches: PayrollBatch[] }) {
-  const sumOf = (b: PayrollBatch, f: "totalEarnings" | "totalDeductions" | "netPay") => b.employees.reduce((n, e) => n + e[f], 0);
-  const grand = batches.reduce((n, b) => n + sumOf(b, "totalEarnings"), 0);
+/** "2026-11" → "2026년 11월" */
+function fmtMonth(period?: string) {
+  const m = period?.match(/^(\d{4})-(\d{1,2})$/);
+  return m ? `${m[1]}년 ${Number(m[2])}월` : (period ?? "");
+}
+
+/** 귀속월마다 인건비(지급합계)를 보여 주는 탭. 고친 값이 바로 반영되고, 누르면 그 월의 직원 목록을 고칠 수 있다 */
+function MonthTabs({
+  batches,
+  months,
+  active,
+  confirmed,
+  onPick,
+}: {
+  batches: PayrollBatch[];
+  months: string[];
+  active?: string;
+  confirmed: Set<string>;
+  onPick: (period: string) => void;
+}) {
   return (
-    <section aria-label="총 인건비" className="rounded-2xl bg-white px-5 py-4 shadow-[0_4px_24px_rgba(0,0,0,0.05)] ring-1 ring-neutral-200/70">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="font-bold">이번 달 총 인건비</h2>
-        {batches.length > 1 && (
-          <p className="text-sm text-muted-foreground">
-            전체 <b className="text-base text-foreground tabular-nums">{won(grand)}원</b>
-          </p>
-        )}
+    <section aria-label="월별 인건비" className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between px-1">
+        <h2 className="font-bold">월별 인건비</h2>
+        <span className="text-xs text-muted-foreground">월을 누르면 그 달 직원 목록을 확인·수정해요</span>
       </div>
-      <ul className="mt-3 flex flex-col divide-y">
-        {batches.map((b) => (
-          <li key={b.id} className="grid grid-cols-2 items-baseline gap-x-4 gap-y-1 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_repeat(3,auto)] sm:gap-x-8">
-            <span className="col-span-2 truncate font-medium sm:col-span-1">
-              {b.companyName} · {b.payPeriod}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">{b.employees.length}명</span>
-            </span>
-            <span className="sm:text-right">
-              <span className="block text-xs text-muted-foreground">총 인건비 (지급합계)</span>
-              <b className="text-lg tabular-nums">{won(sumOf(b, "totalEarnings"))}원</b>
-            </span>
-            <span className="sm:text-right">
-              <span className="block text-xs text-muted-foreground">공제합계</span>
-              <span className="tabular-nums">{won(sumOf(b, "totalDeductions"))}원</span>
-            </span>
-            <span className="sm:text-right">
-              <span className="block text-xs text-muted-foreground">직원 실지급액</span>
-              <span className="tabular-nums">{won(sumOf(b, "netPay"))}원</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-1 text-xs text-muted-foreground">직원에게 지급하는 금액의 합이에요. 회사가 따로 내는 4대보험 사업주 부담분은 포함되지 않아요.</p>
+      <div role="tablist" aria-label="귀속월" className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(200px,1fr))]">
+        {months.map((m) => {
+          const emps = batches.filter((b) => b.payPeriod === m).flatMap((b) => b.employees);
+          const cost = emps.reduce((n, e) => n + e.totalEarnings, 0);
+          const net = emps.reduce((n, e) => n + e.netPay, 0);
+          const done = emps.filter((e) => confirmed.has(e.id)).length;
+          const on = m === active;
+          return (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => onPick(m)}
+              className={`flex flex-col gap-1 rounded-2xl px-4 py-3 text-left ring-1 transition-colors ${
+                on ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white ring-neutral-200/70 hover:bg-neutral-50"
+              }`}
+            >
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="font-semibold">{fmtMonth(m)}</span>
+                <span className={`text-xs ${on ? "text-neutral-300" : "text-muted-foreground"}`}>
+                  {emps.length}명 · 확인 {done}/{emps.length}
+                </span>
+              </span>
+              <span className={`text-xs ${on ? "text-neutral-300" : "text-muted-foreground"}`}>인건비 (지급합계)</span>
+              <b className="text-lg tabular-nums">{won(cost)}원</b>
+              <span className={`text-xs tabular-nums ${on ? "text-neutral-300" : "text-muted-foreground"}`}>실지급액 {won(net)}원</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="px-1 text-xs text-muted-foreground">직원에게 지급하는 금액의 합이에요. 회사가 따로 내는 4대보험 사업주 부담분은 포함되지 않아요.</p>
     </section>
   );
 }
@@ -571,18 +596,17 @@ type DetailProps = {
   totalsBefore: Partial<Record<TotalField, number>>;
   /** 이 직원의 수정 기록 */
   history: EditLog[];
-  isConfirmed: boolean;
   onAmount: (group: ItemGroup, idx: number, amount: number) => void;
   onAdd: (group: ItemGroup, label: string, category: PayCategory, amount: number) => void;
   onRemove: (group: ItemGroup, idx: number) => void;
   onCategory: (group: ItemGroup, idx: number, category: PayCategory) => void;
   onTotal: (field: TotalField, value: number) => void;
-  onToggleConfirmed: () => void;
 };
 
-function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onAmount, onAdd, onRemove, onCategory, onTotal, onToggleConfirmed }: DetailProps) {
+function EmployeeDetail({ e, sourceFile, totalsBefore, history, onAmount, onAdd, onRemove, onCategory, onTotal }: DetailProps) {
   const [focusField, setFocusField] = useState<string | null>(null);
-  const hasError = e.issues.some((i) => i.level === "error");
+  /** 수정 버튼을 눌렀을 때만 금액·분류를 바꿀 수 있다. 다른 직원을 고르면 key가 바뀌어 다시 보기 상태로 돌아간다 */
+  const [editing, setEditing] = useState(false);
   const focused = focusField ? sourceOf(e, focusField) : null;
   const editedAt = (field: string) => lastEditAt(history, e.id, field);
 
@@ -598,6 +622,11 @@ function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onA
           {e.name}
           <MatchBadge e={e} />
         </CardTitle>
+        <CardAction>
+          <Button size="sm" variant={editing ? "default" : "outline"} onClick={() => setEditing((v) => !v)}>
+            {editing ? "완료" : "수정"}
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {e.issues.length > 0 && <IssueList issues={e.issues} onPick={setFocusField} />}
@@ -612,6 +641,7 @@ function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onA
             focusField={focusField}
             onFocus={setFocusField}
             editedAt={editedAt}
+            editable={editing}
             onAmount={onAmount}
             onAdd={onAdd}
             onRemove={onRemove}
@@ -626,6 +656,7 @@ function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onA
             focusField={focusField}
             onFocus={setFocusField}
             editedAt={editedAt}
+            editable={editing}
             onAmount={onAmount}
             onAdd={onAdd}
             onRemove={onRemove}
@@ -634,9 +665,9 @@ function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onA
         </div>
 
         <div className="grid gap-2 rounded-lg border p-3 text-sm sm:grid-cols-3">
-          <TotalCell label="지급합계" field="totalEarnings" e={e} calc={sum(e.earnings)} before={totalsBefore.totalEarnings} onTotal={onTotal} onFocus={setFocusField} editedAt={editedAt("totalEarnings")} />
-          <TotalCell label="공제합계" field="totalDeductions" e={e} calc={sum(e.deductions)} before={totalsBefore.totalDeductions} onTotal={onTotal} onFocus={setFocusField} editedAt={editedAt("totalDeductions")} />
-          <TotalCell label="실지급액" field="netPay" e={e} calc={e.totalEarnings - e.totalDeductions} before={totalsBefore.netPay} onTotal={onTotal} onFocus={setFocusField} editedAt={editedAt("netPay")} />
+          <TotalCell label="지급합계" field="totalEarnings" e={e} calc={sum(e.earnings)} before={totalsBefore.totalEarnings} onTotal={onTotal} onFocus={setFocusField} editedAt={editedAt("totalEarnings")} editable={editing} />
+          <TotalCell label="공제합계" field="totalDeductions" e={e} calc={sum(e.deductions)} before={totalsBefore.totalDeductions} onTotal={onTotal} onFocus={setFocusField} editedAt={editedAt("totalDeductions")} editable={editing} />
+          <TotalCell label="실지급액" field="netPay" e={e} calc={e.totalEarnings - e.totalDeductions} before={totalsBefore.netPay} onTotal={onTotal} onFocus={setFocusField} editedAt={editedAt("netPay")} editable={editing} />
         </div>
 
         {focused && (
@@ -657,13 +688,6 @@ function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onA
             <HistoryList history={history} />
           </div>
         )}
-
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {hasError &&<span className="text-sm text-muted-foreground">오류를 고치면 확인 완료할 수 있어요</span>}
-          <Button variant={isConfirmed ? "outline" : "default"} disabled={hasError && !isConfirmed} onClick={onToggleConfirmed}>
-            {isConfirmed ? "확인 취소" : "이 직원 확인 완료"}
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );
@@ -688,14 +712,20 @@ type ItemTableProps = {
   focusField: string | null;
   onFocus: (f: string) => void;
   editedAt: (field: string) => string | undefined;
+  /** 수정 중일 때만 금액·분류를 바꾸고 항목을 추가·삭제할 수 있다 */
+  editable: boolean;
   onAmount: (group: ItemGroup, idx: number, amount: number) => void;
   onAdd: (group: ItemGroup, label: string, category: PayCategory, amount: number) => void;
   onRemove: (group: ItemGroup, idx: number) => void;
   onCategory: (group: ItemGroup, idx: number, category: PayCategory) => void;
 };
 
-function ItemTable({ title, group, items, issues, categories, focusField, onFocus, editedAt, onAmount, onAdd, onRemove, onCategory }: ItemTableProps) {
+function ItemTable({ title, group, items, issues, categories, focusField, onFocus, editedAt, editable, onAmount, onAdd, onRemove, onCategory }: ItemTableProps) {
   const [adding, setAdding] = useState(false);
+  // 수정을 마치면 열려 있던 항목 추가 칸도 닫는다
+  useEffect(() => {
+    if (!editable) setAdding(false);
+  }, [editable]);
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-medium">{title}</h3>
@@ -733,6 +763,7 @@ function ItemTable({ title, group, items, issues, categories, focusField, onFocu
                   <select
                     aria-label={`${it.label} 표준 항목`}
                     value={it.category}
+                    disabled={!editable}
                     onChange={(ev) => onCategory(group, idx, ev.target.value as PayCategory)}
                     className="mt-0.5 max-w-full rounded border-none bg-transparent p-0 text-xs text-muted-foreground"
                   >
@@ -747,6 +778,7 @@ function ItemTable({ title, group, items, issues, categories, focusField, onFocu
                   <AmountInput
                     value={it.amount}
                     label={it.label}
+                    readOnly={!editable}
                     onFocus={() => onFocus(field)}
                     onChange={(n) => onAmount(group, idx, n)}
                     className={it.edited ? `font-semibold ${EDITED_TEXT}` : ""}
@@ -754,9 +786,11 @@ function ItemTable({ title, group, items, issues, categories, focusField, onFocu
                   {it.edited && isAdded(it) ? (
                     <div className={`flex items-center justify-end gap-2 text-xs ${EDITED_TEXT}`}>
                       <span>직접 추가한 항목{editedAt(field) && <> · {fmtTime(editedAt(field)!)}</>}</span>
-                      <button type="button" onClick={() => onRemove(group, idx)} className="underline underline-offset-2 hover:text-red-600">
-                        삭제
-                      </button>
+                      {editable && (
+                        <button type="button" onClick={() => onRemove(group, idx)} className="underline underline-offset-2 hover:text-red-600">
+                          삭제
+                        </button>
+                      )}
                     </div>
                   ) : (
                     it.edited && (
@@ -776,7 +810,7 @@ function ItemTable({ title, group, items, issues, categories, focusField, onFocu
           </tr>
         </tbody>
       </table>
-      {adding ? (
+      {!editable ? null : adding ? (
         <AddItemForm
           categories={categories}
           onCancel={() => setAdding(false)}
@@ -865,9 +899,10 @@ type TotalCellProps = {
   onTotal: (field: TotalField, value: number) => void;
   onFocus: (f: string) => void;
   editedAt?: string;
+  editable: boolean;
 };
 
-function TotalCell({ label, field, e, calc, before, onTotal, onFocus, editedAt }: TotalCellProps) {
+function TotalCell({ label, field, e, calc, before, onTotal, onFocus, editedAt, editable }: TotalCellProps) {
   const lv = worst(issuesAt(e.issues, field));
   const diff = e[field] - calc;
   return (
@@ -879,6 +914,7 @@ function TotalCell({ label, field, e, calc, before, onTotal, onFocus, editedAt }
       <AmountInput
         value={e[field]}
         label={label}
+        readOnly={!editable}
         onFocus={() => onFocus(field)}
         onChange={(n) => onTotal(field, n)}
         className={`text-base font-semibold ${before !== undefined ? EDITED_TEXT : ""}`}
@@ -925,14 +961,24 @@ function AmountInput({
   label,
   onChange,
   onFocus,
+  readOnly = false,
   className = "",
 }: {
   value: number;
   label: string;
   onChange: (n: number) => void;
   onFocus?: () => void;
+  /** 수정 중이 아닐 때는 입력 칸 대신 숫자만 보여 준다 */
+  readOnly?: boolean;
   className?: string;
 }) {
+  if (readOnly) {
+    return (
+      <span aria-label={`${label} 금액`} className={`block w-full px-1.5 py-0.5 text-right tabular-nums ${className}`}>
+        {won(value)}
+      </span>
+    );
+  }
   return (
     <input
       inputMode="numeric"
