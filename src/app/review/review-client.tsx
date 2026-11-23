@@ -943,7 +943,7 @@ function AmountInput({
         const digits = ev.target.value.replace(/[^\d]/g, "");
         onChange(digits ? Number(digits) : 0);
       }}
-      className={`w-full min-w-0 rounded border border-transparent bg-transparent px-1 text-right tabular-nums hover:border-border focus:border-ring focus:outline-none ${className}`}
+      className={`w-full min-w-0 cursor-text rounded border border-dashed border-neutral-300 bg-neutral-50 px-1.5 py-0.5 text-right tabular-nums hover:border-neutral-500 hover:bg-white focus:border-solid focus:border-ring focus:bg-white focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 ${className}`}
     />
   );
 }
