@@ -2,7 +2,7 @@
 import { useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { EmployeePay } from "@/types/payroll";
-import { canVerify, matchesIdentity } from "./verify";
+import { birthCandidates, matchesBirth } from "./verify";
 
 const keyOf = (id: string) => `jaber.unlocked.${id}`;
 
@@ -28,7 +28,17 @@ function unlock(id: string) {
  * 명세서를 열기 전에 본인 확인을 한다. 링크만 알면 남의 급여를 볼 수 있으면 안 되기 때문이다.
  * 담당자가 목록에서 여는 미리보기(?preview=1)는 확인 없이 연다.
  */
-export function IdentityGate({ employee, children }: { employee: EmployeePay; children: ReactNode }) {
+export function IdentityGate({
+  employee,
+  registryBirth,
+  children,
+}: {
+  employee: EmployeePay;
+  /** 임직원 관리 명부에 등록된 생년월일. 급여대장 파일에 생년월일이 없을 때 쓴다 */
+  registryBirth?: string;
+  children: ReactNode;
+}) {
+  const births = birthCandidates(employee.birthDate, registryBirth);
   const unlocked = useSyncExternalStore(
     (l) => {
       listeners.add(l);
@@ -49,12 +59,12 @@ export function IdentityGate({ employee, children }: { employee: EmployeePay; ch
 
   const box = "mx-auto flex max-w-md flex-col gap-3 rounded-2xl border bg-background p-6 shadow-sm";
 
-  if (!canVerify(employee)) {
+  if (births.length === 0) {
     return (
       <div className={`${box} text-center`}>
         <h1 className="text-lg font-semibold">본인 확인을 할 수 없어요</h1>
         <p className="text-sm text-muted-foreground">
-          이 명세서에는 본인 확인에 쓸 생년월일이 없어서 열 수 없어요. 담당자에게 문의해 주세요.
+          이 직원은 생년월일이 등록되어 있지 않아서 열 수 없어요. 담당자에게 문의해 주세요.
         </p>
       </div>
     );
@@ -62,7 +72,7 @@ export function IdentityGate({ employee, children }: { employee: EmployeePay; ch
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (matchesIdentity(employee, value)) {
+    if (matchesBirth(births, value)) {
       unlock(employee.id);
       return;
     }
