@@ -4,6 +4,7 @@ import { PayslipCard } from "@/app/payslips/payslip-card";
 import { recordOpened } from "@/app/send/send-store";
 import { periodText, useReviewed } from "@/app/payslips/use-reviewed";
 import { Button } from "@/components/ui/button";
+import { IdentityGate } from "./identity-gate";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
 
 /** 인쇄 직전에 제목을 파일 이름으로 맞춘다. 인쇄 창은 페이지 제목을 PDF 기본 파일 이름으로 쓴다 */
@@ -52,7 +53,13 @@ export function PayslipView({ id }: { id: string }) {
     for (const batch of reviewed.batches) {
       const employee = batch.employees.find((e) => e.id === id);
       // 3단계에서 확인 완료한 직원의 명세서만 열린다
-      if (employee && reviewed.confirmed.has(employee.id)) return <PayslipWithActions batch={batch} employee={employee} signature={reviewed.signature} />;
+      if (employee && reviewed.confirmed.has(employee.id)) {
+        return (
+          <IdentityGate employee={employee}>
+            <PayslipWithActions batch={batch} employee={employee} signature={reviewed.signature} />
+          </IdentityGate>
+        );
+      }
     }
   }
 
