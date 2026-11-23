@@ -19,7 +19,7 @@ export type EditLog = {
   employeeName?: string;
   /** "earnings.0", "netPay", "payDate" */
   field: string;
-  kind: "amount" | "category" | "total" | "payDate";
+  kind: "amount" | "category" | "total" | "payDate" | "add" | "remove";
   /** 화면에 보여줄 이름 "기본급", "지급합계" */
   label: string;
   before: string | number | null;

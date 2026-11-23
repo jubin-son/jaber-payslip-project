@@ -54,6 +54,10 @@ function lastEditAt(history: EditLog[], employeeId: string, field: string): stri
 
 type ItemGroup = "earnings" | "deductions";
 
+/** 담당자가 직접 추가한 항목 표시. 스키마를 바꾸지 않으려고 source.text에 표시를 남긴다 */
+const ADDED_MARK = "담당자가 추가";
+const isAdded = (it: PayItem) => it.source?.text === ADDED_MARK;
+
 /** 검산으로 다시 만드는 issue. 나머지(매칭·수신동의·분류 등)는 그대로 둔다 */
 const RECHECK_CODES: Issue["code"][] = ["SUM_MISMATCH", "NET_MISMATCH", "RATE_OUT_OF_RANGE"];
 /** 담당자가 그 칸을 직접 고치면 "확인했다"고 보고 지우는 issue */
@@ -228,11 +232,38 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
         const it = e[group][idx];
         const original = it.edited ? it.edited.before : it.amount;
         it.amount = amount;
-        if (amount === original) delete it.edited;
+        if (amount === original && !isAdded(it)) delete it.edited;
         else it.edited = { before: original, by: "user" };
         return { next: e, touched: `${group}.${idx}` };
       },
       { field: `${group}.${idx}`, kind: "amount", label: item.label, before: item.amount, after: amount },
+    );
+  }
+
+  /** 빠진 항목을 직접 추가한다. 항상 맨 끝에 붙여서 원래 항목의 위치(번호)는 그대로 둔다 */
+  function addItem(group: ItemGroup, label: string, category: PayCategory, amount: number) {
+    const idx = selected[group].length;
+    updateEmployee(
+      selected.id,
+      (e) => {
+        e[group].push({ label, category, amount, source: { text: ADDED_MARK }, edited: { before: 0, by: "user" } });
+        return { next: e };
+      },
+      { field: `${group}.${idx}`, kind: "add", label: `${label} 항목 추가`, before: null, after: amount },
+    );
+  }
+
+  /** 담당자가 추가한 항목만 지울 수 있다 (파일에서 읽은 항목은 지우지 않는다) */
+  function removeItem(group: ItemGroup, idx: number) {
+    const item = selected[group][idx];
+    if (!item || !isAdded(item)) return;
+    updateEmployee(
+      selected.id,
+      (e) => {
+        e[group].splice(idx, 1);
+        return { next: e };
+      },
+      { field: `${group}.${idx}`, kind: "remove", label: `${item.label} 항목 삭제`, before: item.amount, after: null },
     );
   }
 
@@ -394,6 +425,8 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
             history={history.filter((h) => h.employeeId === selected.id)}
             isConfirmed={confirmed.has(selected.id)}
             onAmount={setItemAmount}
+            onAdd={addItem}
+            onRemove={removeItem}
             onCategory={setItemCategory}
             onTotal={setTotal}
             onToggleConfirmed={() => toggleConfirmed(selected.id)}
@@ -540,12 +573,14 @@ type DetailProps = {
   history: EditLog[];
   isConfirmed: boolean;
   onAmount: (group: ItemGroup, idx: number, amount: number) => void;
+  onAdd: (group: ItemGroup, label: string, category: PayCategory, amount: number) => void;
+  onRemove: (group: ItemGroup, idx: number) => void;
   onCategory: (group: ItemGroup, idx: number, category: PayCategory) => void;
   onTotal: (field: TotalField, value: number) => void;
   onToggleConfirmed: () => void;
 };
 
-function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onAmount, onCategory, onTotal, onToggleConfirmed }: DetailProps) {
+function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onAmount, onAdd, onRemove, onCategory, onTotal, onToggleConfirmed }: DetailProps) {
   const [focusField, setFocusField] = useState<string | null>(null);
   const hasError = e.issues.some((i) => i.level === "error");
   const focused = focusField ? sourceOf(e, focusField) : null;
@@ -578,6 +613,8 @@ function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onA
             onFocus={setFocusField}
             editedAt={editedAt}
             onAmount={onAmount}
+            onAdd={onAdd}
+            onRemove={onRemove}
             onCategory={onCategory}
           />
           <ItemTable
@@ -590,6 +627,8 @@ function EmployeeDetail({ e, sourceFile, totalsBefore, history, isConfirmed, onA
             onFocus={setFocusField}
             editedAt={editedAt}
             onAmount={onAmount}
+            onAdd={onAdd}
+            onRemove={onRemove}
             onCategory={onCategory}
           />
         </div>
@@ -650,10 +689,13 @@ type ItemTableProps = {
   onFocus: (f: string) => void;
   editedAt: (field: string) => string | undefined;
   onAmount: (group: ItemGroup, idx: number, amount: number) => void;
+  onAdd: (group: ItemGroup, label: string, category: PayCategory, amount: number) => void;
+  onRemove: (group: ItemGroup, idx: number) => void;
   onCategory: (group: ItemGroup, idx: number, category: PayCategory) => void;
 };
 
-function ItemTable({ title, group, items, issues, categories, focusField, onFocus, editedAt, onAmount, onCategory }: ItemTableProps) {
+function ItemTable({ title, group, items, issues, categories, focusField, onFocus, editedAt, onAmount, onAdd, onRemove, onCategory }: ItemTableProps) {
+  const [adding, setAdding] = useState(false);
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-medium">{title}</h3>
@@ -676,7 +718,7 @@ function ItemTable({ title, group, items, issues, categories, focusField, onFocu
                   <div className="flex items-center gap-1">
                     <span>{it.label}</span>
                     {it.taxFree && <span className="text-xs text-muted-foreground">비과세</span>}
-                    {it.edited && <EditedTag />}
+                    {it.edited && <EditedTag>{isAdded(it) ? "추가" : "수정"}</EditedTag>}
                     {it.source?.cell && (
                       <button
                         type="button"
@@ -709,11 +751,20 @@ function ItemTable({ title, group, items, issues, categories, focusField, onFocu
                     onChange={(n) => onAmount(group, idx, n)}
                     className={it.edited ? `font-semibold ${EDITED_TEXT}` : ""}
                   />
-                  {it.edited && (
-                    <div className={`text-xs ${EDITED_TEXT}`}>
-                      원래 <s>{won(it.edited.before)}</s>
-                      {editedAt(field) && <> · {fmtTime(editedAt(field)!)}</>}
+                  {it.edited && isAdded(it) ? (
+                    <div className={`flex items-center justify-end gap-2 text-xs ${EDITED_TEXT}`}>
+                      <span>직접 추가한 항목{editedAt(field) && <> · {fmtTime(editedAt(field)!)}</>}</span>
+                      <button type="button" onClick={() => onRemove(group, idx)} className="underline underline-offset-2 hover:text-red-600">
+                        삭제
+                      </button>
                     </div>
+                  ) : (
+                    it.edited && (
+                      <div className={`text-xs ${EDITED_TEXT}`}>
+                        원래 <s>{won(it.edited.before)}</s>
+                        {editedAt(field) && <> · {fmtTime(editedAt(field)!)}</>}
+                      </div>
+                    )
                   )}
                 </td>
               </tr>
@@ -725,6 +776,80 @@ function ItemTable({ title, group, items, issues, categories, focusField, onFocu
           </tr>
         </tbody>
       </table>
+      {adding ? (
+        <AddItemForm
+          categories={categories}
+          onCancel={() => setAdding(false)}
+          onSubmit={(label, category, amount) => {
+            onAdd(group, label, category, amount);
+            setAdding(false);
+          }}
+        />
+      ) : (
+        <button type="button" onClick={() => setAdding(true)} className="self-start text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
+          + 빠진 항목 추가
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------- 빠진 항목 추가 ----------
+
+function AddItemForm({
+  categories,
+  onSubmit,
+  onCancel,
+}: {
+  categories: readonly PayCategory[];
+  onSubmit: (label: string, category: PayCategory, amount: number) => void;
+  onCancel: () => void;
+}) {
+  const fallback = categories[categories.length - 1]; // 기타지급 / 기타공제
+  const [label, setLabel] = useState("");
+  const [category, setCategory] = useState<PayCategory>(fallback);
+  const [amount, setAmount] = useState(0);
+  const ok = label.trim().length > 0 && amount > 0;
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-violet-200 bg-violet-50/50 p-2 text-sm dark:border-violet-900 dark:bg-violet-950/20">
+      <input
+        autoFocus
+        aria-label="추가할 항목 이름"
+        placeholder="항목 이름 (예: 명절상여)"
+        value={label}
+        onChange={(ev) => setLabel(ev.target.value)}
+        className="rounded border bg-background px-2 py-1"
+      />
+      <div className="flex items-center gap-2">
+        <select aria-label="추가할 항목의 표준 항목" value={category} onChange={(ev) => setCategory(ev.target.value as PayCategory)} className="min-w-0 flex-1 rounded border bg-background px-1 py-1 text-xs">
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <div className="w-32">
+          <input
+            inputMode="numeric"
+            aria-label="추가할 항목 금액"
+            placeholder="금액(원)"
+            value={amount ? won(amount) : ""}
+            onChange={(ev) => {
+              const digits = ev.target.value.replace(/[^\d]/g, "");
+              setAmount(digits ? Number(digits) : 0);
+            }}
+            className="w-full min-w-0 rounded border bg-background px-2 py-1 text-right tabular-nums"
+          />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          취소
+        </Button>
+        <Button type="button" size="sm" disabled={!ok} onClick={() => onSubmit(label.trim(), category, amount)}>
+          추가
+        </Button>
+      </div>
     </div>
   );
 }
@@ -818,7 +943,7 @@ function AmountInput({
         const digits = ev.target.value.replace(/[^\d]/g, "");
         onChange(digits ? Number(digits) : 0);
       }}
-      className={`w-full min-w-0 rounded border border-transparent bg-transparent px-1 text-right tabular-nums hover:border-border focus:border-ring focus:outline-none ${className}`}
+      className={`w-full min-w-0 cursor-text rounded border border-dashed border-neutral-300 bg-neutral-50 px-1.5 py-0.5 text-right tabular-nums hover:border-neutral-500 hover:bg-white focus:border-solid focus:border-ring focus:bg-white focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 ${className}`}
     />
   );
 }
