@@ -3,7 +3,7 @@
 // 명부는 hr-store(localStorage)에 두고, 급여대장을 올리면 이 명부로 직원을 찾는다.
 import { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { Download, FileSpreadsheet, RotateCcw, Trash2, UserPlus } from "lucide-react";
+import { Download, FileSpreadsheet, Pencil, RotateCcw, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { jaberCompanies, type JaberEmployee } from "@/lib/jaber-db";
@@ -334,6 +334,9 @@ function ManualForm({ roster, onDone, onCancel }: { roster: JaberEmployee[]; onD
 function RosterList({ roster, fresh }: { roster: JaberEmployee[]; fresh: string[] }) {
   const [company, setCompany] = useState("");
   const [q, setQ] = useState("");
+  /** 지금 고치고 있는 직원의 회원번호 (한 번에 한 명만) */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editing = roster.find((e) => e.memberId === editingId);
   const rows = useMemo(() => {
     const key = normName(q);
     const digits = q.replace(/\D/g, "");
@@ -356,7 +359,7 @@ function RosterList({ roster, fresh }: { roster: JaberEmployee[]; fresh: string[
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">② 등록된 임직원 {roster.length}명</CardTitle>
-        <CardDescription>급여대장을 올리면 이 명부에서 직원을 찾아 연락처와 알림톡 수신동의를 붙여요. 회원번호는 등록할 때 자동으로 붙어요.</CardDescription>
+        <CardDescription>급여대장을 올리면 이 명부에서 직원을 찾아 연락처와 알림톡 수신동의를 붙여요. 연필 버튼으로 한 명씩 고칠 수 있고, 회원번호는 바뀌지 않아요.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -386,12 +389,15 @@ function RosterList({ roster, fresh }: { roster: JaberEmployee[]; fresh: string[
                 <th className="px-3 py-2 font-medium">주소</th>
                 <th className="px-3 py-2 font-medium">알림톡</th>
                 <th className="px-3 py-2 font-medium">등록일</th>
-                <th className="w-10" />
+                <th className="w-20" />
               </tr>
             </thead>
             <tbody>
               {rows.map((e) => (
-                <tr key={e.memberId} className={`border-t ${fresh.includes(e.memberId) ? "bg-indigo-50" : ""}`}>
+                <tr
+                  key={e.memberId}
+                  className={`border-t ${e.memberId === editingId ? "bg-amber-50" : fresh.includes(e.memberId) ? "bg-indigo-50" : ""}`}
+                >
                   <td className="px-3 py-2 font-mono tabular-nums">{e.memberId}</td>
                   <td className="px-3 py-2">{e.companyName}</td>
                   <td className="px-3 py-2 font-medium">
@@ -405,7 +411,10 @@ function RosterList({ roster, fresh }: { roster: JaberEmployee[]; fresh: string[
                   </td>
                   <td className="px-3 py-2">{e.kakaoConsent ? <span className="text-emerald-700">동의</span> : <span className="text-muted-foreground">미동의</span>}</td>
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">{e.registeredAt}</td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <button type="button" aria-label={`${e.name} 수정`} onClick={() => setEditingId(e.memberId)} className="mr-2 text-neutral-400 hover:text-neutral-900">
+                      <Pencil className="size-4" />
+                    </button>
                     <button type="button" aria-label={`${e.name} 삭제`} onClick={() => remove(e)} className="text-neutral-400 hover:text-red-600">
                       <Trash2 className="size-4" />
                     </button>
@@ -422,7 +431,104 @@ function RosterList({ roster, fresh }: { roster: JaberEmployee[]; fresh: string[
             </tbody>
           </table>
         </div>
+        {editing && <EditDialog key={editing.memberId} e={editing} roster={roster} onClose={() => setEditingId(null)} />}
       </CardContent>
     </Card>
+  );
+}
+
+/** 직원 한 명을 고치는 팝업. 표가 좁아도 다 보이도록 화면 가운데에 띄운다. 회원번호·등록일은 바꾸지 않는다 */
+function EditDialog({ e, roster, onClose }: { e: JaberEmployee; roster: JaberEmployee[]; onClose: () => void }) {
+  const [companyCode, setCompanyCode] = useState(e.companyCode);
+  const [name, setName] = useState(e.name);
+  const [birthDate, setBirthDate] = useState(e.birthDate ?? "");
+  const [phone, setPhone] = useState(e.phone ?? "");
+  const [address, setAddress] = useState(e.address ?? "");
+  const [consent, setConsent] = useState(e.kakaoConsent);
+  const company = jaberCompanies.find((c) => c.code === companyCode);
+  const draft: Draft | null =
+    company && name.trim()
+      ? {
+          companyCode,
+          companyName: company.name,
+          name: name.trim(),
+          birthDate: birthDate || undefined,
+          phone: phone.trim() || undefined,
+          address: address.trim() || undefined,
+          email: e.email,
+          kakaoConsent: consent,
+        }
+      : null;
+  // 자기 자신은 빼고 중복을 본다
+  const dup = draft ? isDuplicate(roster.filter((x) => x.memberId !== e.memberId), draft) : false;
+
+  function save() {
+    if (!draft || dup) return;
+    rosterStore.set((prev) => prev.map((x) => (x.memberId === e.memberId ? { ...x, ...draft } : x)));
+    onClose();
+  }
+  const box = "w-full min-w-0 rounded-lg border bg-white px-3 py-2 text-sm";
+  const field = "flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground";
+  const onKey = (ev: React.KeyboardEvent) => {
+    if (ev.key === "Enter" && (ev.target as HTMLElement).tagName === "INPUT") save();
+    if (ev.key === "Escape") onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onMouseDown={(ev) => ev.target === ev.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={`${e.name} 직원 정보 수정`} onKeyDown={onKey} className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl">
+        <div className="flex flex-col gap-4">
+          <div>
+            <h3 className="text-lg font-bold">직원 정보 수정</h3>
+            <p className="text-xs text-muted-foreground">
+              회원번호 <span className="font-mono">{e.memberId}</span> · 등록일 {e.registeredAt} · 회원번호와 등록일은 바뀌지 않아요
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={field}>
+              사업장명
+              <select value={companyCode} onChange={(ev) => setCompanyCode(ev.target.value)} className={box}>
+                {jaberCompanies.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={field}>
+              이름
+              <input autoFocus value={name} onChange={(ev) => setName(ev.target.value)} className={box} />
+            </label>
+            <label className={field}>
+              생년월일
+              <input type="date" value={birthDate} onChange={(ev) => setBirthDate(ev.target.value)} className={box} />
+            </label>
+            <label className={field}>
+              전화번호
+              <input inputMode="tel" value={phone} onChange={(ev) => setPhone(ev.target.value)} className={box} />
+            </label>
+            <label className={`${field} sm:col-span-2`}>
+              주소
+              <input value={address} onChange={(ev) => setAddress(ev.target.value)} className={box} />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={consent} onChange={(ev) => setConsent(ev.target.checked)} className="size-4" />
+              알림톡 수신에 동의했어요
+            </label>
+            {dup && <span className="text-sm text-amber-800">같은 사업장에 이름·생년월일이 같은 직원이 이미 있어요.</span>}
+            <span className="ml-auto flex gap-2">
+              <Button size="sm" variant="ghost" onClick={onClose}>
+                취소
+              </Button>
+              <Button size="sm" onClick={save} disabled={!draft || dup}>
+                저장
+              </Button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
