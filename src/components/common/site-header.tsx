@@ -16,18 +16,19 @@ export const STEPS = [
 export function SiteHeader() {
   const pathname = usePathname();
   const current = STEPS.find((s) => pathname.startsWith(s.href));
+  const isHome = pathname === "/";
 
   return (
     <header className="sticky top-0 z-20 border-b border-neutral-100 bg-white/85 backdrop-blur print:hidden">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className={`flex h-16 items-center justify-between gap-4 px-4 sm:px-6 ${isHome ? "mx-auto max-w-6xl" : ""}`}>
         <Link href="/" className="flex shrink-0 items-baseline gap-1.5">
           <span className="text-xl font-extrabold tracking-tight">자버</span>
-          <span className="text-base font-semibold text-neutral-400">급여명세서</span>
+          <span className="text-base font-semibold text-neutral-400">인사관리</span>
         </Link>
 
         {current ? (
           <StepNav currentNo={current.no} className="hidden md:flex" />
-        ) : (
+        ) : isHome && (
           <Link
             href="/upload"
             className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700"

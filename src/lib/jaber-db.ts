@@ -28,6 +28,7 @@ export type JaberEmployee = {
   birthDate?: string; // 생년월일(선택 입력)
   phone?: string; // 휴대전화. 담당자가 입력한 형식 그대로
   email?: string; // 이메일(선택 입력)
+  address?: string; // 주소(임직원 관리에서 입력. 자버 직원연락처 원본에는 없음)
   kakaoConsent: boolean; // 알림톡 수신동의 Y → true
   registeredAt: string; // 등록일
 };

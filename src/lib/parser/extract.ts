@@ -18,6 +18,7 @@ import {
 } from "./values";
 import { checkEmployee } from "./checks";
 import { matchJaber } from "@/lib/jaber-match";
+import type { JaberEmployee } from "@/lib/jaber-db";
 
 // ---------- 결과 보고용 타입 (스키마 밖, 2단계 화면에서 씀) ----------
 
@@ -582,7 +583,7 @@ export function extractFile(file: RawFile): ParseResult {
   return { batches, tables, skipped };
 }
 
-export function extractFiles(files: RawFile[]): ParseResult {
+export function extractFiles(files: RawFile[], roster?: JaberEmployee[]): ParseResult {
   const result: ParseResult = { batches: [], tables: [], skipped: [] };
   files.forEach((f, fi) => {
     const r = extractFile(f);
@@ -595,7 +596,7 @@ export function extractFiles(files: RawFile[]): ParseResult {
     result.skipped.push(...r.skipped);
   });
   // 자버 등록 정보(사업장·직원)와 맞춰 연락처·수신동의를 붙인다
-  matchJaber(result.batches);
+  matchJaber(result.batches, roster);
   return result;
 }
 

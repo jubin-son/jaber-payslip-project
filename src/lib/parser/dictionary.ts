@@ -1,7 +1,7 @@
 // 열 이름(원본 표기) → 역할 사전.
 // 노션 '데이터 스키마'의 표준 항목 표와 원본 급여대장 15개에 실제로 나온 표기를 모았다.
 // 여기서 못 찾은 열은 위치(지급/공제 구역)로 추정하고, 나중에 AI가 다시 확인한다.
-import type { DeductionCategory, EarningCategory } from "@/types/payroll";
+import { EARNING_CATEGORIES, type DeductionCategory, type EarningCategory, type PayCategory } from "@/types/payroll";
 
 export type ColumnRole =
   | { kind: "name" }
@@ -93,10 +93,35 @@ const TABLE: [string[], ColumnRole][] = [
 const MAP = new Map<string, ColumnRole>();
 for (const [labels, role] of TABLE) for (const l of labels) MAP.set(normalizeLabel(l), role);
 
+/** 기본 관리에서 담당자가 직접 연결한 항목. 기본 사전보다 먼저 본다 */
+const CUSTOM = new Map<string, ColumnRole>();
+
+/** 기본 관리의 '엑셀 항목 연결'을 사전에 반영한다. 정리(extractFiles) 전에 부른다 */
+export function setCustomLinks(links: { label: string; category: PayCategory | "무시" }[]) {
+  CUSTOM.clear();
+  for (const l of links) {
+    const n = normalizeLabel(l.label);
+    if (!n) continue;
+    if (l.category === "무시") CUSTOM.set(n, { kind: "ignore" });
+    else if ((EARNING_CATEGORIES as readonly string[]).includes(l.category)) CUSTOM.set(n, E(l.category as EarningCategory));
+    else CUSTOM.set(n, D(l.category as DeductionCategory));
+  }
+}
+
 export function lookupRole(label: unknown): ColumnRole | undefined {
   const n = normalizeLabel(label);
   if (!n) return undefined;
-  return MAP.get(n);
+  return CUSTOM.get(n) ?? MAP.get(n);
+}
+
+/** 기본 사전이 이 표준 항목으로 읽는 원본 표기들 (기본 관리 화면 안내용) */
+export function builtinLabelsOf(category: PayCategory): string[] {
+  return TABLE.filter(([, r]) => (r.kind === "earning" || r.kind === "deduction") && r.category === category).flatMap(([ls]) => ls);
+}
+
+/** 기본 사전에서 이 표기를 무엇으로 읽는지 (없으면 undefined) */
+export function builtinRoleOf(label: string): ColumnRole | undefined {
+  return MAP.get(normalizeLabel(label));
 }
 
 /** 여러 열 위에 걸친 묶음 머리글 */

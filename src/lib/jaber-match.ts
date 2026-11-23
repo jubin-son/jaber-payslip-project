@@ -22,7 +22,7 @@ function normCompany(s: string): string {
 }
 
 /** 이름 비교용: "임 상재" = "임상재", "NGUYEN THI HOA" = "Nguyen Thi Hoa" */
-function normName(s: string): string {
+export function normName(s: string): string {
   return s.replace(/\s+/g, "").toUpperCase();
 }
 
@@ -54,24 +54,29 @@ function oneCharOff(a: string, b: string): boolean {
   return true;
 }
 
-function findCompany(b: PayrollBatch): { company?: JaberCompany; how?: "name" | "employees" } {
-  const key = normCompany(b.companyName);
-  if (key) {
-    const exact = jaberCompanies.filter((c) => normCompany(c.name) === key);
-    if (exact.length === 1) return { company: exact[0], how: "name" };
-    const partial = jaberCompanies.filter((c) => {
-      const k = normCompany(c.name);
-      return k.includes(key) || key.includes(k);
-    });
-    if (partial.length === 1) return { company: partial[0], how: "name" };
-  }
+/** 상호로 자버 사업장 찾기: 같은 상호 → 한쪽이 다른 쪽을 품는 상호(후보가 하나일 때만) */
+export function findCompanyByName(name: string): JaberCompany | undefined {
+  const key = normCompany(name);
+  if (!key) return undefined;
+  const exact = jaberCompanies.filter((c) => normCompany(c.name) === key);
+  if (exact.length === 1) return exact[0];
+  const partial = jaberCompanies.filter((c) => {
+    const k = normCompany(c.name);
+    return k.includes(key) || key.includes(k);
+  });
+  return partial.length === 1 ? partial[0] : undefined;
+}
+
+function findCompany(b: PayrollBatch, roster: JaberEmployee[]): { company?: JaberCompany; how?: "name" | "employees" } {
+  const byName = findCompanyByName(b.companyName);
+  if (byName) return { company: byName, how: "name" };
   // 상호로 못 찾으면 직원 이름이 가장 많이 겹치는 사업장 (절반 넘게 겹쳐야 인정)
   const names = new Set(b.employees.map((e) => normName(e.name)));
   if (names.size === 0) return {};
   let best: { c: JaberCompany; n: number } | undefined;
   let tie = false;
   for (const c of jaberCompanies) {
-    const n = jaberEmployees.filter((e) => e.companyCode === c.code && names.has(normName(e.name))).length;
+    const n = roster.filter((e) => e.companyCode === c.code && names.has(normName(e.name))).length;
     if (!best || n > best.n) [best, tie] = [{ c, n }, false];
     else if (n === best.n) tie = true;
   }
@@ -122,10 +127,11 @@ function matchEmployee(e: EmployeePay, staff: JaberEmployee[]): { match: Employe
   return { match: { status: "not_found" }, issues: [{ level: "warning", code: "MATCH_NOT_FOUND", message: why }] };
 }
 
-/** 배치마다 자버 사업장을 찾고, 직원마다 자버 직원을 찾아 match와 issue를 채운다 (배치를 직접 고친다) */
-export function matchJaber(batches: PayrollBatch[]): void {
+/** 배치마다 자버 사업장을 찾고, 직원마다 자버 직원을 찾아 match와 issue를 채운다 (배치를 직접 고친다).
+ *  roster: 임직원 관리에 등록된 명부. 없으면 자버 직원연락처 원본 */
+export function matchJaber(batches: PayrollBatch[], roster: JaberEmployee[] = jaberEmployees): void {
   for (const b of batches) {
-    const { company, how } = findCompany(b);
+    const { company, how } = findCompany(b, roster);
     b.issues = b.issues.filter((i) => !MATCH_CODES.includes(i.code));
     if (!company) {
       b.companyCode = undefined;
@@ -143,7 +149,7 @@ export function matchJaber(batches: PayrollBatch[]): void {
     b.companyCode = company.code;
     // 파일에 상호가 없어서(파일 이름 등) 직원으로 찾은 경우에는 자버에 등록된 상호를 쓴다
     if (how === "employees") b.companyName = company.name;
-    const staff = jaberEmployees.filter((s) => s.companyCode === company.code);
+    const staff = roster.filter((s) => s.companyCode === company.code);
     for (const e of b.employees) {
       const { match, issues } = matchEmployee(e, staff);
       e.match = match;

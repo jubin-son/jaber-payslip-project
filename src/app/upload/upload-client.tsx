@@ -6,6 +6,8 @@ import { AlertCircle, ArrowRight, Loader2, CheckCircle2, FileQuestion, FileSprea
 import { detectKind, readFile, type RawFile } from "@/lib/parser/read-file";
 import { extractFiles } from "@/lib/parser/extract";
 import { saveParseResult } from "@/lib/store";
+import { rosterStore, settingsStore } from "@/lib/hr-store";
+import { setCustomLinks } from "@/lib/parser/dictionary";
 import { Button } from "@/components/ui/button";
 
 const ACCEPT = ".xlsx,.xls,.csv,.pdf";
@@ -116,7 +118,12 @@ export function UploadClient() {
     // 팝업이 화면에 한 번 그려진 다음에 계산을 시작한다(두 프레임만 기다리고, 고정 대기 시간은 두지 않는다)
     await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     try {
-      const result = extractFiles(done.map((i) => i.file!));
+      // 기본 관리의 '엑셀 항목 연결'과 임직원 관리의 명부를 반영해서 정리한다
+      setCustomLinks(settingsStore.get().itemLinks);
+      const result = extractFiles(
+        done.map((i) => i.file!),
+        rosterStore.get(),
+      );
       if (result.batches.length === 0) {
         setConverting(false);
         const why = result.skipped.map((x) => `${x.fileName}: ${x.reason}`).join(" / ");
