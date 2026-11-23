@@ -175,9 +175,20 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
 
   /** 한꺼번에 확인 완료할 수 있는 직원: 오류가 없는 사람. 확인 필요(경고)는 보고 넘어갈 수 있으니 포함한다 */
   const clean = (e: EmployeePay) => !e.issues.some((i) => i.level === "error");
-  const everyone = batches.flatMap((b) => b.employees);
+  /** 귀속월별로 나눠서 보여 준다. 고른 월의 사업장(배치)만 왼쪽 목록에 나온다 */
+  const months = [...new Set(batches.map((b) => b.payPeriod))].sort();
+  const activeMonth = batch?.payPeriod;
+  const monthBatches = batches.map((b, bi) => ({ b, bi })).filter(({ b }) => b.payPeriod === activeMonth);
+  const everyone = monthBatches.flatMap(({ b }) => b.employees);
   const bulkTargets = everyone.filter((e) => !confirmed.has(e.id) && clean(e));
   const confirmedAll = everyone.filter((e) => confirmed.has(e.id)).length;
+
+  /** 다른 월을 고르면 그 월의 첫 사업장·첫 직원으로 옮긴다 */
+  function selectMonth(period: string) {
+    const bi = batches.findIndex((b) => b.payPeriod === period);
+    if (bi < 0 || bi === state.activeBatch) return;
+    updateReview((s) => ({ ...s, activeBatch: bi, selectedId: s.batches[bi]?.employees[0]?.id ?? "" }));
+  }
 
   function confirmAllClean() {
     const ids = bulkTargets.map((e) => e.id);
@@ -337,8 +348,8 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
 
   return (
     <div className="flex flex-col gap-5">
-      {/* 맨 위: 이번 달 총 인건비 */}
-      <TotalCostSummary batches={batches} />
+      {/* 맨 위: 월별 인건비 (누르면 그 월의 직원 목록으로 바뀐다) */}
+      <MonthTabs batches={batches} months={months} active={activeMonth} confirmed={confirmed} onPick={selectMonth} />
 
       {/* 숫자 오류 의심 내역 */}
       <SuspectBanner batches={batches} onPick={selectEmployee} />
@@ -347,13 +358,15 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
         {/* 왼쪽: 인식한 임직원 목록 */}
         <aside className="flex flex-col gap-3 lg:sticky lg:top-24">
           <div className="flex items-baseline justify-between px-1">
-            <h2 className="font-bold">임직원 {everyone.length}명</h2>
+            <h2 className="font-bold">
+              {fmtMonth(activeMonth)} 임직원 {everyone.length}명
+            </h2>
             <span className="text-xs text-muted-foreground">
               확인 {confirmedAll}/{everyone.length}
             </span>
           </div>
           <nav aria-label="직원 목록" className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto rounded-3xl bg-white p-3 shadow-[0_4px_24px_rgba(0,0,0,0.05)] ring-1 ring-neutral-200/70">
-            {batches.map((b, bi) => (
+            {monthBatches.map(({ b, bi }) => (
               <div key={b.id} className="flex flex-col gap-1">
                 <p className="truncate px-2 pt-1 text-xs font-semibold text-muted-foreground" title={b.sourceFile}>
                   {b.companyName} · {b.payPeriod}
@@ -464,45 +477,66 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
   );
 }
 
-// ---------- 총 인건비 ----------
+// ---------- 월별 인건비 ----------
 
-/** 사업장·귀속월마다 이번 달 인건비가 얼마나 나가는지. 고친 값이 바로 반영된다 */
-function TotalCostSummary({ batches }: { batches: PayrollBatch[] }) {
-  const sumOf = (b: PayrollBatch, f: "totalEarnings" | "totalDeductions" | "netPay") => b.employees.reduce((n, e) => n + e[f], 0);
-  const grand = batches.reduce((n, b) => n + sumOf(b, "totalEarnings"), 0);
+/** "2026-11" → "2026년 11월" */
+function fmtMonth(period?: string) {
+  const m = period?.match(/^(\d{4})-(\d{1,2})$/);
+  return m ? `${m[1]}년 ${Number(m[2])}월` : (period ?? "");
+}
+
+/** 귀속월마다 인건비(지급합계)를 보여 주는 탭. 고친 값이 바로 반영되고, 누르면 그 월의 직원 목록을 고칠 수 있다 */
+function MonthTabs({
+  batches,
+  months,
+  active,
+  confirmed,
+  onPick,
+}: {
+  batches: PayrollBatch[];
+  months: string[];
+  active?: string;
+  confirmed: Set<string>;
+  onPick: (period: string) => void;
+}) {
   return (
-    <section aria-label="총 인건비" className="rounded-2xl bg-white px-5 py-4 shadow-[0_4px_24px_rgba(0,0,0,0.05)] ring-1 ring-neutral-200/70">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="font-bold">이번 달 총 인건비</h2>
-        {batches.length > 1 && (
-          <p className="text-sm text-muted-foreground">
-            전체 <b className="text-base text-foreground tabular-nums">{won(grand)}원</b>
-          </p>
-        )}
+    <section aria-label="월별 인건비" className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between px-1">
+        <h2 className="font-bold">월별 인건비</h2>
+        <span className="text-xs text-muted-foreground">월을 누르면 그 달 직원 목록을 확인·수정해요</span>
       </div>
-      <ul className="mt-3 flex flex-col divide-y">
-        {batches.map((b) => (
-          <li key={b.id} className="grid grid-cols-2 items-baseline gap-x-4 gap-y-1 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_repeat(3,auto)] sm:gap-x-8">
-            <span className="col-span-2 truncate font-medium sm:col-span-1">
-              {b.companyName} · {b.payPeriod}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">{b.employees.length}명</span>
-            </span>
-            <span className="sm:text-right">
-              <span className="block text-xs text-muted-foreground">총 인건비 (지급합계)</span>
-              <b className="text-lg tabular-nums">{won(sumOf(b, "totalEarnings"))}원</b>
-            </span>
-            <span className="sm:text-right">
-              <span className="block text-xs text-muted-foreground">공제합계</span>
-              <span className="tabular-nums">{won(sumOf(b, "totalDeductions"))}원</span>
-            </span>
-            <span className="sm:text-right">
-              <span className="block text-xs text-muted-foreground">직원 실지급액</span>
-              <span className="tabular-nums">{won(sumOf(b, "netPay"))}원</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-1 text-xs text-muted-foreground">직원에게 지급하는 금액의 합이에요. 회사가 따로 내는 4대보험 사업주 부담분은 포함되지 않아요.</p>
+      <div role="tablist" aria-label="귀속월" className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(200px,1fr))]">
+        {months.map((m) => {
+          const emps = batches.filter((b) => b.payPeriod === m).flatMap((b) => b.employees);
+          const cost = emps.reduce((n, e) => n + e.totalEarnings, 0);
+          const net = emps.reduce((n, e) => n + e.netPay, 0);
+          const done = emps.filter((e) => confirmed.has(e.id)).length;
+          const on = m === active;
+          return (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => onPick(m)}
+              className={`flex flex-col gap-1 rounded-2xl px-4 py-3 text-left ring-1 transition-colors ${
+                on ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white ring-neutral-200/70 hover:bg-neutral-50"
+              }`}
+            >
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="font-semibold">{fmtMonth(m)}</span>
+                <span className={`text-xs ${on ? "text-neutral-300" : "text-muted-foreground"}`}>
+                  {emps.length}명 · 확인 {done}/{emps.length}
+                </span>
+              </span>
+              <span className={`text-xs ${on ? "text-neutral-300" : "text-muted-foreground"}`}>인건비 (지급합계)</span>
+              <b className="text-lg tabular-nums">{won(cost)}원</b>
+              <span className={`text-xs tabular-nums ${on ? "text-neutral-300" : "text-muted-foreground"}`}>실지급액 {won(net)}원</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="px-1 text-xs text-muted-foreground">직원에게 지급하는 금액의 합이에요. 회사가 따로 내는 4대보험 사업주 부담분은 포함되지 않아요.</p>
     </section>
   );
 }
