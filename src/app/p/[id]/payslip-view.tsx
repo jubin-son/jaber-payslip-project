@@ -4,6 +4,7 @@ import { PayslipCard } from "@/app/payslips/payslip-card";
 import { recordOpened } from "@/app/send/send-store";
 import { periodText, useReviewed } from "@/app/payslips/use-reviewed";
 import { Button } from "@/components/ui/button";
+import { rosterStore } from "@/lib/hr-store";
 import { IdentityGate } from "./identity-gate";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
 
@@ -44,6 +45,8 @@ function PayslipWithActions({ batch, employee, signature }: { batch: PayrollBatc
 
 export function PayslipView({ id }: { id: string }) {
   const reviewed = useReviewed();
+  // 임직원 관리 명부. 급여대장 파일에 생년월일이 없는 직원은 여기 등록된 생년월일로 본인 확인한다
+  const roster = rosterStore.use();
 
   if (reviewed.status === "loading") {
     return <p className="mx-auto max-w-md text-center text-sm text-muted-foreground">불러오는 중…</p>;
@@ -55,7 +58,10 @@ export function PayslipView({ id }: { id: string }) {
       // 3단계에서 확인 완료한 직원의 명세서만 열린다
       if (employee && reviewed.confirmed.has(employee.id)) {
         return (
-          <IdentityGate employee={employee}>
+          <IdentityGate
+            employee={employee}
+            registryBirth={roster?.find((r) => r.memberId === employee.match?.memberId)?.birthDate}
+          >
             <PayslipWithActions batch={batch} employee={employee} signature={reviewed.signature} />
           </IdentityGate>
         );
