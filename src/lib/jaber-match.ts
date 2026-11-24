@@ -115,7 +115,7 @@ function matchEmployee(e: EmployeePay, staff: JaberEmployee[]): { match: Employe
       ],
     };
   }
-  let why = "자버 직원연락처에 이 이름이 없어요. 사업장에 직원 등록을 요청해 주세요.";
+  let why = "자버 직원연락처에 이 이름이 없어요. 임직원 관리에서 직원을 등록해 주세요.";
   if (same.length > 0) {
     why = `자버에 같은 이름이 있지만 생년월일이 달라요(파일 ${birth}, 자버 ${same.map((s) => s.birthDate).join(", ")}). 같은 사람인지 확인해 주세요.`;
   } else {
@@ -129,8 +129,13 @@ function matchEmployee(e: EmployeePay, staff: JaberEmployee[]): { match: Employe
 
 /** 배치마다 자버 사업장을 찾고, 직원마다 자버 직원을 찾아 match와 issue를 채운다 (배치를 직접 고친다).
  *  roster: 임직원 관리에 등록된 명부. 없으면 자버 직원연락처 원본 */
-export function matchJaber(batches: PayrollBatch[], roster: JaberEmployee[] = jaberEmployees): void {
+export function matchJaber(batches: PayrollBatch[], roster: JaberEmployee[] = jaberEmployees, own?: JaberCompany): void {
   for (const b of batches) {
+    // 사업주 화면: 올린 파일은 내 사업장 것이다. 상호가 다른 사업장으로 읽히면 다른 사업장 파일인지 확인하게 한다
+    if (own) {
+      matchOwn(b, roster, own);
+      continue;
+    }
     const { company, how } = findCompany(b, roster);
     b.issues = b.issues.filter((i) => !MATCH_CODES.includes(i.code));
     if (!company) {
@@ -155,5 +160,27 @@ export function matchJaber(batches: PayrollBatch[], roster: JaberEmployee[] = ja
       e.match = match;
       e.issues = [...e.issues.filter((i) => !MATCH_CODES.includes(i.code)), ...issues];
     }
+  }
+}
+
+/** 내 사업장 기준 매칭: 사업장은 고정하고, 내 직원 명부에서만 직원을 찾는다 */
+function matchOwn(b: PayrollBatch, roster: JaberEmployee[], own: JaberCompany): void {
+  b.issues = b.issues.filter((i) => !MATCH_CODES.includes(i.code));
+  const other = findCompanyByName(b.companyName);
+  if (other && other.code !== own.code) {
+    b.issues.push({
+      level: "warning",
+      code: "MATCH_NOT_FOUND",
+      message: `파일에 적힌 상호 '${b.companyName}'이(가) 내 사업장(${own.name})과 달라요. 다른 사업장의 급여대장이 아닌지 확인해 주세요.`,
+    });
+  }
+  b.companyCode = own.code;
+  // 명세서에는 사업주가 등록한 상호를 쓴다 (파일 표기는 "말랑솔분식"처럼 줄여 쓰거나 파일 이름일 수 있다)
+  b.companyName = own.name;
+  const staff = roster.filter((s) => s.companyCode === own.code);
+  for (const e of b.employees) {
+    const { match, issues } = matchEmployee(e, staff);
+    e.match = match;
+    e.issues = [...e.issues.filter((i) => !MATCH_CODES.includes(i.code)), ...issues];
   }
 }

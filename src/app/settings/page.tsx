@@ -6,7 +6,7 @@ export default function SettingsPage() {
     <PageShell
       step="인건비 관리"
       title="기본 관리"
-      description="사업장마다 한 번 정해 두면 계속 쓰는 값이에요. 소득 구분과, 급여대장 엑셀의 항목을 어떤 수당·공제 항목으로 읽을지 정해 주세요."
+      description="내 사업장 정보와 급여명세서 발행 설정을 정해요. 한 번 정해 두면 급여대장을 올릴 때마다 그대로 써요."
     >
       <SettingsClient />
     </PageShell>
