@@ -9,6 +9,9 @@ import { useSyncExternalStore } from "react";
 import type { EmployeePay, PayCategory } from "@/types/payroll";
 import { jaberCompanies, jaberEmployees, type IncomeType, type JaberCompany, type JaberEmployee } from "@/lib/jaber-db";
 import type { HeadcountSetting } from "@/lib/wage-statement";
+import { matchJaber } from "@/lib/jaber-match";
+import { getParseResult, saveParseResult } from "@/lib/store";
+import { updateReview } from "@/app/review/review-store";
 
 export type { IncomeType };
 
@@ -37,7 +40,7 @@ export type HrSettings = { byCompany: Record<string, BusinessSettings> };
 const DEFAULT_SETTINGS: HrSettings = { byCompany: {} };
 const DEFAULT_BUSINESS: BusinessSettings = { profile: {}, itemLinks: [], headcount: "자동" };
 
-function createLocalStore<T>(key: string, initial: () => T) {
+function createLocalStore<T>(key: string, initial: () => T, onWrite?: (next: T) => void) {
   let cache: T | undefined;
   const listeners = new Set<() => void>();
   function read(): T {
@@ -58,6 +61,7 @@ function createLocalStore<T>(key: string, initial: () => T) {
       // 저장이 안 돼도 이 탭 안에서는 cache로 동작한다
     }
     listeners.forEach((l) => l());
+    onWrite?.(next);
   }
   function subscribe(l: () => void) {
     listeners.add(l);
@@ -88,7 +92,27 @@ export const settingsStore = createLocalStore<HrSettings>("jaber.hr.settings.v2"
 export const ownerStore = createLocalStore<string>("jaber.hr.owner.v1", () => jaberCompanies[0]?.code ?? "");
 
 /** 임직원 명부. 처음 열면 자버 직원연락처 69명(테스트 데이터)으로 시작한다 */
-export const rosterStore = createLocalStore<JaberEmployee[]>("jaber.hr.roster.v1", () => structuredClone(jaberEmployees));
+// 명부를 고치면 이미 올려 둔 급여대장도 새 명부로 다시 매칭한다 (급여대장을 먼저 올리고 직원을 나중에 등록해도 명세서에 반영되게)
+export const rosterStore = createLocalStore<JaberEmployee[]>("jaber.hr.roster.v1", () => structuredClone(jaberEmployees), rematchSavedPayroll);
+
+/**
+ * 탭에 저장된 급여대장(2단계 정리 결과, 3단계 확인·수정 사본)을 지금 명부로 다시 매칭한다.
+ * 매칭 결과(match)와 매칭 안내(issue)만 바뀌고, 금액·고친 내용·수정 기록은 그대로 둔다.
+ */
+function rematchSavedPayroll(roster: JaberEmployee[]) {
+  const own = getOwner()?.company;
+  const parsed = getParseResult();
+  if (parsed) {
+    const next = structuredClone(parsed);
+    matchJaber(next.batches, roster, own);
+    saveParseResult(next);
+  }
+  updateReview((s) => {
+    const batches = structuredClone(s.batches);
+    matchJaber(batches, roster, own);
+    return { ...s, batches };
+  });
+}
 
 export function businessOf(settings: HrSettings | null, companyCode?: string): BusinessSettings {
   const b = (companyCode && settings?.byCompany[companyCode]) || undefined;

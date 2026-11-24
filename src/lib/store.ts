@@ -19,6 +19,11 @@ function read(): ParseResult | null {
   return cache;
 }
 
+/** 화면 밖(명부가 바뀌었을 때 다시 매칭 등)에서 지금 정리 결과 읽기 */
+export function getParseResult(): ParseResult | null {
+  return read();
+}
+
 export function saveParseResult(r: ParseResult | null) {
   cache = r;
   try {
