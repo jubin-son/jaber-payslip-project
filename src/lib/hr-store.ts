@@ -9,16 +9,22 @@ import { jaberEmployees, type JaberEmployee } from "@/lib/jaber-db";
 
 export type IncomeType = "근로소득" | "사업소득";
 
-/** 급여대장 엑셀의 열 이름을 어떤 표준 항목으로 읽을지. "무시"면 금액으로 읽지 않는다 */
-export type ItemLink = { label: string; category: PayCategory | "무시" };
+/**
+ * 급여대장 엑셀의 열 이름을 어떤 표준 항목으로 읽을지. "무시"면 금액으로 읽지 않는다.
+ * taxFree: 지급 항목일 때만 쓴다. 비과세는 '어떤 항목인지'와 따로 정하는 속성이라 표준 항목으로 두지 않았다.
+ *   (식대는 식대이면서 비과세. 연구활동비·보육수당처럼 사업장마다 다른 비과세 수당을 '기타지급 + 비과세'로 연결한다)
+ */
+export type ItemLink = { label: string; category: PayCategory | "무시"; taxFree?: boolean };
 
 export type HrSettings = {
   /** 사업장코드 → 소득 구분. 없으면 근로소득 */
   incomeType: Record<string, IncomeType>;
   itemLinks: ItemLink[];
+  /** 사업장코드 → 식사를 현물로 제공하는지. 제공하면 식대는 비과세가 아니다(소득세법 제12조제3호러목). 예전 저장값에는 없을 수 있다 */
+  mealProvided?: Record<string, boolean>;
 };
 
-const DEFAULT_SETTINGS: HrSettings = { incomeType: {}, itemLinks: [] };
+const DEFAULT_SETTINGS: HrSettings = { incomeType: {}, itemLinks: [], mealProvided: {} };
 
 function createLocalStore<T>(key: string, initial: () => T) {
   let cache: T | undefined;

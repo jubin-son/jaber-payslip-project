@@ -50,6 +50,8 @@ const TABLE: [string[], ColumnRole][] = [
   [["직책수당", "직무수당"], E("직책수당")],
   [["상여", "상여금", "성과급", "인센티브", "bonus"], E("상여금")],
   [["강사료", "시간강사료"], E("강사료")],
+  // 기업부설연구소 연구원의 연구활동비(월 20만원 비과세). 법인 급여대장에 자주 나와서 기본으로 넣었다
+  [["연구활동비", "연구보조비"], E("기타지급", true)],
 
   // 공제 항목
   [["국민연금", "연금", "np"], D("국민연금")],
@@ -72,7 +74,8 @@ const TABLE: [string[], ColumnRole][] = [
   [["시급", "rate", "시간당강사료"], { kind: "hourlyWage" }],
   [["구분", "급여형태", "근무형태", "paytype", "임금형태"], { kind: "employmentType" }],
   [["부서"], { kind: "department" }],
-  [["직위", "직무", "직종", "position", "과목"], { kind: "position" }],
+  // 직급: 법인 급여대장은 '직위' 대신 '직급'(대표이사·팀장·사원 등)을 쓰는 경우가 많다
+  [["직위", "직급", "직무", "직종", "position", "과목"], { kind: "position" }],
   [["사원코드", "사번", "empno", "사원번호"], { kind: "employeeNo" }],
   [["생년월일", "dob", "생일"], { kind: "birthDate" }],
   [["입사일", "입사일자", "입사"], { kind: "hireDate" }],
@@ -97,13 +100,14 @@ for (const [labels, role] of TABLE) for (const l of labels) MAP.set(normalizeLab
 const CUSTOM = new Map<string, ColumnRole>();
 
 /** 기본 관리의 '엑셀 항목 연결'을 사전에 반영한다. 정리(extractFiles) 전에 부른다 */
-export function setCustomLinks(links: { label: string; category: PayCategory | "무시" }[]) {
+export function setCustomLinks(links: { label: string; category: PayCategory | "무시"; taxFree?: boolean }[]) {
   CUSTOM.clear();
   for (const l of links) {
     const n = normalizeLabel(l.label);
     if (!n) continue;
     if (l.category === "무시") CUSTOM.set(n, { kind: "ignore" });
-    else if ((EARNING_CATEGORIES as readonly string[]).includes(l.category)) CUSTOM.set(n, E(l.category as EarningCategory));
+    // 비과세 표시는 지급 항목에만 붙인다 (검산에서 과세 금액을 셀 때 빠진다)
+    else if ((EARNING_CATEGORIES as readonly string[]).includes(l.category)) CUSTOM.set(n, E(l.category as EarningCategory, l.taxFree || undefined));
     else CUSTOM.set(n, D(l.category as DeductionCategory));
   }
 }

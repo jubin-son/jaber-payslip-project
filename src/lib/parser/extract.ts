@@ -17,6 +17,7 @@ import {
   parseQuantity,
 } from "./values";
 import { checkEmployee } from "./checks";
+import { checkTaxFree } from "./tax-free";
 import { matchJaber } from "@/lib/jaber-match";
 import type { JaberEmployee } from "@/lib/jaber-db";
 
@@ -583,7 +584,8 @@ export function extractFile(file: RawFile): ParseResult {
   return { batches, tables, skipped };
 }
 
-export function extractFiles(files: RawFile[], roster?: JaberEmployee[]): ParseResult {
+/** mealProvided: 기본 관리에서 '식사 제공'으로 표시한 사업장코드 → true */
+export function extractFiles(files: RawFile[], roster?: JaberEmployee[], opts: { mealProvided?: Record<string, boolean> } = {}): ParseResult {
   const result: ParseResult = { batches: [], tables: [], skipped: [] };
   files.forEach((f, fi) => {
     const r = extractFile(f);
@@ -597,6 +599,11 @@ export function extractFiles(files: RawFile[], roster?: JaberEmployee[]): ParseR
   });
   // 자버 등록 정보(사업장·직원)와 맞춰 연락처·수신동의를 붙인다
   matchJaber(result.batches, roster);
+  // 비과세 한도 확인은 사업장을 찾은 뒤에 한다 (식사 제공 여부가 사업장 설정이라서)
+  for (const b of result.batches) {
+    const mealProvided = !!(b.companyCode && opts.mealProvided?.[b.companyCode]);
+    for (const e of b.employees) e.issues.push(...checkTaxFree(e, { mealProvided }));
+  }
   return result;
 }
 

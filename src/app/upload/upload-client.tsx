@@ -123,6 +123,7 @@ export function UploadClient() {
       const result = extractFiles(
         done.map((i) => i.file!),
         rosterStore.get(),
+        { mealProvided: settingsStore.get().mealProvided },
       );
       if (result.batches.length === 0) {
         setConverting(false);
