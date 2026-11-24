@@ -20,11 +20,9 @@ export type HrSettings = {
   /** 사업장코드 → 소득 구분. 없으면 근로소득 */
   incomeType: Record<string, IncomeType>;
   itemLinks: ItemLink[];
-  /** 사업장코드 → 식사를 현물로 제공하는지. 제공하면 식대는 비과세가 아니다(소득세법 제12조제3호러목). 예전 저장값에는 없을 수 있다 */
-  mealProvided?: Record<string, boolean>;
 };
 
-const DEFAULT_SETTINGS: HrSettings = { incomeType: {}, itemLinks: [], mealProvided: {} };
+const DEFAULT_SETTINGS: HrSettings = { incomeType: {}, itemLinks: [] };
 
 function createLocalStore<T>(key: string, initial: () => T) {
   let cache: T | undefined;

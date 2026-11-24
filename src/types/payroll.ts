@@ -92,7 +92,7 @@ export type IssueCode =
   | "MATCH_AMBIGUOUS" // 후보가 여러 명
   | "NO_CONSENT" // 알림톡 수신동의 N
   | "NO_PAY_DATE" // 지급일 없음
-  | "TAX_FREE_LIMIT"; // 비과세 한도 초과·식사 제공 사업장의 식대 (2026-11 추가)
+  | "TAX_FREE_LIMIT"; // 비과세 한도 초과 (2026-11 추가, 경고만)
 
 // 표준 항목 (category)
 // 원본 항목명은 사무소마다 달라도 이 값 중 하나로 분류한다.

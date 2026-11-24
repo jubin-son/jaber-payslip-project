@@ -17,8 +17,6 @@ import {
   type TotalField,
 } from "./review-store";
 import { checkEmployee } from "@/lib/parser/checks";
-import { checkTaxFree } from "@/lib/parser/tax-free";
-import { settingsStore } from "@/lib/hr-store";
 import {
   DEDUCTION_CATEGORIES,
   EARNING_CATEGORIES,
@@ -65,11 +63,11 @@ const RECHECK_CODES: Issue["code"][] = ["SUM_MISMATCH", "NET_MISMATCH", "RATE_OU
 /** 담당자가 그 칸을 직접 고치면 "확인했다"고 보고 지우는 issue */
 const CLEARED_BY_EDIT: Issue["code"][] = ["UNKNOWN_ITEM", "LOW_CONFIDENCE"];
 
-function recheck(e: EmployeePay, touchedField?: string, mealProvided = false): Issue[] {
+function recheck(e: EmployeePay, touchedField?: string): Issue[] {
   const kept = e.issues.filter(
     (i) => !RECHECK_CODES.includes(i.code) && !(touchedField && i.field === touchedField && CLEARED_BY_EDIT.includes(i.code)),
   );
-  const fresh = [...checkEmployee(e, { hasTotalEarnings: true, hasTotalDeductions: true, hasNet: true, mealProvided }), ...checkTaxFree(e, { mealProvided })];
+  const fresh = checkEmployee(e, { hasTotalEarnings: true, hasTotalDeductions: true, hasNet: true });
   return [...fresh, ...kept];
 }
 
@@ -223,8 +221,7 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
         employees: b.employees.map((e) => {
           if (e.id !== id) return e;
           const { next, touched } = fn(clone(e));
-          const mealProvided = !!(b.companyCode && settingsStore.get().mealProvided?.[b.companyCode]);
-          return { ...next, issues: recheck(next, touched, mealProvided) };
+          return { ...next, issues: recheck(next, touched) };
         }),
       }));
       return {

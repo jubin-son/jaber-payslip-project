@@ -1,7 +1,9 @@
 // 비과세 한도 확인.
-// 왜 넣었나: 급여대장은 열 이름만 보고 '식대 = 비과세'로 읽기 때문에, 한도를 넘는 금액이나
-// 식사를 현물로 주는 사업장의 식대까지 통째로 비과세로 표시됐다. 세금은 세무사·노무사가 이미 계산해서 주므로
-// 금액은 바꾸지 않고, 담당자가 작성자에게 한 번 확인해 볼 수 있게 '확인 필요'만 띄운다(소득세 역산은 하지 않는다).
+// 왜 넣었나: 급여대장은 열 이름만 보고 '식대 = 비과세'로 읽기 때문에, 한도를 넘는 금액까지 통째로 비과세로 표시됐다.
+// 세금은 세무사·노무사가 이미 계산해서 주므로 금액은 바꾸지 않고, 담당자가 작성자에게 한 번 확인해 볼 수 있게
+// '확인 필요'(warning)만 띄운다. 경고라서 일괄 확인·발송을 막지 않는다. 소득세 역산은 하지 않는다.
+// 넣지 않은 것: 식사 현물 제공 여부, 연구소 인정·본인 차량 같은 요건은 파일로 알 수 없어서 확인하지 않는다
+// (사업장마다 설정을 받는 방식은 자동화 취지에 비해 과하다고 보고 뺐다).
 //
 // 근거 조문 (Korean Law MCP로 2026-11-24 현행본 확인)
 //   - 소득세법 제12조제3호러목 (2026.7.1. 시행본): 식사를 제공받지 않는 근로자가 받는 월 20만원 이하의 식사대
@@ -32,11 +34,6 @@ export const TAX_FREE_RULES: Rule[] = [
   { id: "childcare", name: "보육수당", monthlyLimit: 200_000, perChild: true, basis: "소득세법 제12조제3호머목", match: (it) => has(it, ["보육"]) },
 ];
 
-export type TaxFreeOptions = {
-  /** 기본 관리에서 '식사 제공'으로 표시한 사업장이면 true. 이때 식대는 전액 과세 */
-  mealProvided?: boolean;
-};
-
 const won = (n: number) => `${Math.round(n).toLocaleString("ko-KR")}원`;
 
 /** 비과세로 표시된 항목을 규칙별로 묶는다 (식대·중식대처럼 열이 둘이어도 한도는 합쳐서 본다) */
@@ -53,32 +50,22 @@ function groupByRule(e: EmployeePay) {
   return groups;
 }
 
-/** 검산용 과세 지급액: 비과세가 아닌 항목 + 한도를 넘은 비과세 금액 (식사 제공 사업장이면 식대 전액) */
-export function taxableEarnings(e: EmployeePay, opts: TaxFreeOptions = {}): number {
+/** 검산용 과세 지급액: 비과세가 아닌 항목 + 한도를 넘은 비과세 금액 */
+export function taxableEarnings(e: EmployeePay): number {
   let taxable = e.earnings.filter((it) => !it.taxFree).reduce((a, b) => a + b.amount, 0);
   for (const [rule, g] of groupByRule(e)) {
-    if (rule.id === "meal" && opts.mealProvided) taxable += g.total;
-    else if (!rule.perChild) taxable += Math.max(0, g.total - rule.monthlyLimit);
+    if (!rule.perChild) taxable += Math.max(0, g.total - rule.monthlyLimit);
   }
   return taxable;
 }
 
-/** 비과세 한도·식사 제공 확인. 금액은 바꾸지 않고 issue만 만든다 */
-export function checkTaxFree(e: EmployeePay, opts: TaxFreeOptions = {}): Issue[] {
+/** 비과세 한도 확인. 금액은 바꾸지 않고 issue만 만든다 */
+export function checkTaxFree(e: EmployeePay): Issue[] {
   // 일용직·강사는 비과세 구조가 달라 건너뛴다
   if (e.employmentType === "일용" || e.employmentType === "강사") return [];
   const issues: Issue[] = [];
   for (const [rule, g] of groupByRule(e)) {
     const field = `earnings.${g.firstIndex}`;
-    if (rule.id === "meal" && opts.mealProvided) {
-      issues.push({
-        level: "warning",
-        code: "TAX_FREE_LIMIT",
-        message: `식사를 제공하는 사업장으로 설정돼 있어요. 이 경우 식대 ${won(g.total)}은 비과세가 아니라 과세 대상이에요(${rule.basis}). 과세로 처리됐는지 작성한 사무소에 확인해 주세요.`,
-        field,
-      });
-      continue;
-    }
     const over = g.total - rule.monthlyLimit;
     if (over <= 0) continue;
     if (rule.perChild) {

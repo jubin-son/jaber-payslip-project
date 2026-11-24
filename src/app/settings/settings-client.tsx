@@ -1,5 +1,5 @@
 "use client";
-// 기본 관리: ① 사업장별 소득 구분(근로소득/사업소득) ② 엑셀 항목 → 연결할 수당·공제 항목 (+ 비과세 여부) ③ 식사 제공 사업장
+// 기본 관리: ① 사업장별 소득 구분(근로소득/사업소득) ② 엑셀 항목 → 연결할 수당·공제 항목 (+ 비과세 여부)
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ export function SettingsClient() {
     <div className="flex flex-col gap-6">
       <IncomeTypeCard />
       <ItemLinkCard links={settings.itemLinks} />
-      <MealProvidedCard />
     </div>
   );
 }
@@ -70,47 +69,6 @@ function IncomeTypeCard() {
               </li>
             );
           })}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---------- ③ 식사 제공 ----------
-// 왜 필요한가: 식대는 '식사를 제공받지 않는 근로자'가 받을 때만 월 20만원까지 비과세다(소득세법 제12조제3호러목).
-// 급여대장만 봐서는 회사가 밥을 주는지 알 수 없어서 사업장마다 표시해 두고, 표시한 곳의 식대는 '확인 필요'로 띄운다.
-
-function MealProvidedCard() {
-  const settings = settingsStore.use();
-  function toggle(code: string, on: boolean) {
-    settingsStore.set((s) => ({ ...s, mealProvided: { ...s.mealProvided, [code]: on } }));
-  }
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">③ 식사 제공</CardTitle>
-        <CardDescription>
-          구내식당·도시락 등으로 식사를 현물로 주는 사업장을 체크해 주세요. 이런 사업장의 식대는 비과세가 아니라서, 급여대장에 식대가 있으면 정리할 때
-          &lsquo;확인 필요&rsquo;로 알려 드려요. 식대·자가운전보조금·연구활동비가 월 20만원을 넘을 때도 함께 알려 드려요.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
-          {jaberCompanies.map((c) => (
-            <li key={c.code}>
-              <label className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-neutral-50">
-                <input
-                  type="checkbox"
-                  className="size-4"
-                  checked={!!settings?.mealProvided?.[c.code]}
-                  onChange={(e) => toggle(c.code, e.target.checked)}
-                  aria-label={`${c.name} 식사 제공`}
-                />
-                <span className="font-medium">{c.name}</span>
-                <span className="text-xs text-muted-foreground">{c.code}</span>
-              </label>
-            </li>
-          ))}
         </ul>
       </CardContent>
     </Card>

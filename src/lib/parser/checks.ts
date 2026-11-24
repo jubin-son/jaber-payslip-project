@@ -1,6 +1,6 @@
 // 검산 규칙 (노션 '데이터 스키마' > 검산 규칙)
 import type { EmployeePay, Issue } from "@/types/payroll";
-import { taxableEarnings } from "./tax-free";
+import { checkTaxFree, taxableEarnings } from "./tax-free";
 
 const won = (n: number) => `${Math.round(n).toLocaleString("ko-KR")}원`;
 const sum = (xs: { amount: number }[]) => xs.reduce((a, b) => a + b.amount, 0);
@@ -10,7 +10,7 @@ const ROUNDING = 10;
 
 export function checkEmployee(
   e: EmployeePay,
-  opts: { hasTotalEarnings: boolean; hasTotalDeductions: boolean; hasNet: boolean; mealProvided?: boolean },
+  opts: { hasTotalEarnings: boolean; hasTotalDeductions: boolean; hasNet: boolean },
 ): Issue[] {
   const issues: Issue[] = [];
   const se = sum(e.earnings);
@@ -59,8 +59,8 @@ export function checkEmployee(
 
   // 요율: 일용직·강사는 4대보험 구조가 달라 건너뛴다
   if (e.employmentType !== "일용" && e.employmentType !== "강사") {
-    // 비과세 한도를 넘은 금액(식사 제공 사업장이면 식대 전액)은 과세로 센다
-    const taxable = taxableEarnings(e, { mealProvided: opts.mealProvided });
+    // 비과세 한도를 넘은 금액은 과세로 센다
+    const taxable = taxableEarnings(e);
     const idx = e.deductions.findIndex((d) => d.category === "국민연금");
     const pension = idx >= 0 ? e.deductions[idx].amount : 0;
     // 국민연금은 기준소득월액으로 매기므로 상여 달 등은 4.75%와 다를 수 있다. 크게 벗어날 때만 경고
@@ -90,5 +90,7 @@ export function checkEmployee(
       });
     }
   }
+  // 비과세 한도 초과 (경고만, 발송을 막지 않는다)
+  issues.push(...checkTaxFree(e));
   return issues;
 }
