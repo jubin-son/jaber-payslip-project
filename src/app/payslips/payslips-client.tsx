@@ -5,7 +5,10 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PayslipCard } from "./payslip-card";
+import { PayslipCard, statementContextOf, useStatementContext } from "./payslip-card";
+import { settingsStore } from "@/lib/hr-store";
+import { statementNotes, type StatementContext } from "@/lib/wage-statement";
+import type { EmployeePay, PayrollBatch } from "@/types/payroll";
 import { identityParts, periodText, useReviewed, won } from "./use-reviewed";
 
 function Guide({ title, text, href, button }: { title: string; text: string; href: string; button: string }) {
@@ -24,11 +27,52 @@ function Guide({ title, text, href, button }: { title: string; text: string; hre
   );
 }
 
+/** 사업장 규모 표시: 기본 관리 설정값인지, 급여대장 인원으로 추정했는지 */
+function HeadcountInfo({ batch }: { batch: PayrollBatch }) {
+  const ctx = useStatementContext(batch);
+  return (
+    <span>
+      상시근로자 <b>{ctx.headcount === "5이상" ? "5명 이상" : "5명 미만"}</b>{" "}
+      <span className="text-muted-foreground">
+        {ctx.estimated ? `(급여대장 ${ctx.count}명으로 추정 · ` : "(기본 관리 설정 · "}
+        <Link href="/settings" className="underline underline-offset-2">
+          바꾸기
+        </Link>
+        )
+      </span>
+    </span>
+  );
+}
+
+/** 발송 전에 담당자만 보는 임금명세서 기재 확인 메모. 직원 명세서에는 나가지 않는다 */
+function StatementNotes({ employee, ctx }: { employee: EmployeePay; ctx: StatementContext }) {
+  const notes = statementNotes(employee, ctx);
+  if (notes.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+      <h3 className="font-semibold">명세서 기재 확인 {notes.length}건</h3>
+      <ul className="flex flex-col gap-1.5">
+        {notes.map((n, i) => (
+          <li key={i} className="flex gap-2">
+            <span className={`mt-1.5 size-2 shrink-0 rounded-full ${n.level === "warning" ? "bg-amber-500" : "bg-sky-500"}`} />
+            <span>
+              <span className="font-medium">{n.level === "warning" ? "확인 필요" : "참고"} · </span>
+              {n.message}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs opacity-80">근로형태·사업장 규모에 따라 임금명세서에 적을 내용을 점검한 메모예요. 금액은 바꾸지 않고, 발송도 막지 않아요.</p>
+    </section>
+  );
+}
+
 export function PayslipsClient() {
   const reviewed = useReviewed();
   const [batchIdx, setBatchIdx] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const settings = settingsStore.use();
 
   if (reviewed.status === "loading") return <p className="text-muted-foreground">불러오는 중…</p>;
   if (reviewed.status === "no-file") {
@@ -62,6 +106,7 @@ export function PayslipsClient() {
   const total = ready.reduce((n, e) => n + e.netPay, 0);
 
   const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
+  const ctx = statementContextOf(settings, batch);
 
   async function copyLink(id: string) {
     try {
@@ -118,6 +163,7 @@ export function PayslipsClient() {
           <span>
             실지급액 합계 <b>{won(total)}</b>
           </span>
+          <HeadcountInfo batch={batch} />
         </CardContent>
       </Card>
 
@@ -127,12 +173,14 @@ export function PayslipsClient() {
             const active = e.id === selected.id;
             const ok = confirmed.has(e.id);
             const hasError = e.issues.some((i) => i.level === "error");
+            const noteCount = statementNotes(e, ctx).filter((n) => n.level === "warning").length;
             return (
               <li key={e.id} className={`flex flex-col gap-2 rounded-lg border p-3 ${active ? "border-foreground bg-muted" : ""}`}>
                 <button type="button" disabled={!ok} onClick={() => setSelectedId(e.id)} className="flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60">
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="truncate font-medium">{e.name}</span>
                     {hasError ? <Badge variant="destructive">오류</Badge> : ok ? <Badge variant="secondary">확인 완료</Badge> : <Badge variant="outline">확인 전</Badge>}
+                    {noteCount > 0 && <Badge variant="outline" className="border-amber-300 text-amber-800">기재 확인 {noteCount}</Badge>}
                   </span>
                   <span className="shrink-0 tabular-nums">{won(e.netPay)}</span>
                 </button>
@@ -157,8 +205,7 @@ export function PayslipsClient() {
         </ul>
 
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-muted-foreground">미리보기 · 직원이 링크로 열면 이렇게 보여요</p>
-          <PayslipCard batch={batch} employee={selected} />
+          <SelectedPreview batch={batch} employee={selected} />
         </div>
       </div>
 
@@ -178,5 +225,16 @@ export function PayslipsClient() {
         </Button>
       </div>
     </div>
+  );
+}
+
+function SelectedPreview({ batch, employee }: { batch: PayrollBatch; employee: EmployeePay }) {
+  const ctx = useStatementContext(batch);
+  return (
+    <>
+      <StatementNotes employee={employee} ctx={ctx} />
+      <p className="text-sm text-muted-foreground">미리보기 · 직원이 링크로 열면 이렇게 보여요</p>
+      <PayslipCard batch={batch} employee={employee} />
+    </>
   );
 }

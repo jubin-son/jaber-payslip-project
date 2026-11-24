@@ -8,6 +8,7 @@
 import { useSyncExternalStore } from "react";
 import type { PayCategory } from "@/types/payroll";
 import { jaberCompanies, jaberEmployees, type JaberCompany, type JaberEmployee } from "@/lib/jaber-db";
+import type { HeadcountSetting } from "@/lib/wage-statement";
 
 export type IncomeType = "근로소득" | "사업소득";
 
@@ -27,13 +28,15 @@ export type BusinessSettings = {
   profile: Partial<CompanyProfile>;
   incomeType: IncomeType;
   itemLinks: ItemLink[];
+  /** 상시근로자 수 5명 이상/미만. 가산율·연차 같은 임금명세서 기재가 달라진다. "자동"이면 급여대장 인원으로 추정 */
+  headcount?: HeadcountSetting;
 };
 
 /** 사업장코드 → 기본 관리 값. 테스트로 사업주를 바꿔도 사업장마다 따로 남는다 */
 export type HrSettings = { byCompany: Record<string, BusinessSettings> };
 
 const DEFAULT_SETTINGS: HrSettings = { byCompany: {} };
-const DEFAULT_BUSINESS: BusinessSettings = { profile: {}, incomeType: "근로소득", itemLinks: [] };
+const DEFAULT_BUSINESS: BusinessSettings = { profile: {}, incomeType: "근로소득", itemLinks: [], headcount: "자동" };
 
 function createLocalStore<T>(key: string, initial: () => T) {
   let cache: T | undefined;
@@ -97,6 +100,10 @@ export function businessOf(settings: HrSettings | null, companyCode?: string): B
 export function companyOf(settings: HrSettings | null, companyCode?: string): JaberCompany | undefined {
   const base = jaberCompanies.find((c) => c.code === companyCode);
   return base && { ...base, ...businessOf(settings, companyCode).profile };
+}
+
+export function headcountOf(settings: HrSettings | null, companyCode?: string): HeadcountSetting {
+  return businessOf(settings, companyCode).headcount ?? "자동";
 }
 
 export function incomeTypeOf(settings: HrSettings | null, companyCode?: string): IncomeType {
