@@ -17,6 +17,7 @@ import {
   type TotalField,
 } from "./review-store";
 import { checkEmployee } from "@/lib/parser/checks";
+import { explainMismatches, hintContextOf, type HintFix, type MismatchCase } from "@/lib/parser/mismatch-hints";
 import {
   DEDUCTION_CATEGORIES,
   EARNING_CATEGORIES,
@@ -30,7 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PayslipCard } from "@/app/payslips/payslip-card";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
 
 // ---------- 작은 도우미 ----------
 
@@ -307,6 +308,13 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
     );
   }
 
+  /** 원인 추정에서 고른 고치기를 반영한다 (수정 기록에 남는다) */
+  function applyFix(fix: HintFix) {
+    if (fix.kind === "add") addItem(fix.group, fix.label, fix.category, fix.amount);
+    else if (fix.kind === "amount") setItemAmount(fix.group, fix.index, fix.amount);
+    else setTotal(fix.field, fix.amount);
+  }
+
   const TOTAL_LABEL: Record<TotalField, string> = { totalEarnings: "지급합계", totalDeductions: "공제합계", netPay: "실지급액" };
 
   function setTotal(field: TotalField, value: number) {
@@ -371,7 +379,7 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
       {/* 숫자 오류 의심 내역 */}
       <SuspectBanner batches={batches} onPick={selectEmployee} />
 
-      <div className="grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_420px]">
+      <div className="grid items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)] min-[1440px]:grid-cols-[220px_minmax(0,1fr)_380px]">
         {/* 왼쪽: 인식한 임직원 목록 */}
         <aside className="flex flex-col gap-3 lg:sticky lg:top-24">
           <div className="flex items-baseline justify-between px-1">
@@ -451,6 +459,8 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
             onRemove={removeItem}
             onCategory={setItemCategory}
             onTotal={setTotal}
+            cases={explainMismatches(selected, hintContextOf(batches, selected))}
+            onFix={applyFix}
           />
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -469,7 +479,7 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
         </section>
 
         {/* 오른쪽: 명세서 미리보기 (가운데에서 고치면 바로 바뀐다) */}
-        <aside className="flex min-w-0 flex-col gap-3 lg:col-span-2 xl:sticky xl:top-24 xl:col-span-1">
+        <aside className="flex min-w-0 flex-col gap-3 lg:col-span-2 min-[1440px]:sticky min-[1440px]:top-24 min-[1440px]:col-span-1">
           <div className="flex items-baseline justify-between px-1">
             <h2 className="font-bold">명세서 미리보기</h2>
             <span className="text-xs text-muted-foreground">고치면 바로 바뀌어요</span>
@@ -565,11 +575,12 @@ const NUMBER_CODES: Issue["code"][] = ["SUM_MISMATCH", "NET_MISMATCH", "RATE_OUT
 
 function SuspectBanner({ batches, onPick }: { batches: PayrollBatch[]; onPick: (batchIndex: number, id: string) => void }) {
   const rows = batches.flatMap((b, bi) =>
-    b.employees.flatMap((e) =>
-      e.issues
+    b.employees.flatMap((e) => {
+      const cases = e.issues.some((i) => NUMBER_CODES.includes(i.code)) ? explainMismatches(e, hintContextOf(batches, e)) : [];
+      return e.issues
         .filter((i) => NUMBER_CODES.includes(i.code) && i.level !== "info")
-        .map((i, n) => ({ key: `${e.id}-${i.code}-${n}`, bi, e, b, i })),
-    ),
+        .map((i, n) => ({ key: `${e.id}-${i.code}-${n}`, bi, e, b, i, guess: cases.find((c) => c.field === i.field)?.hints[0] }));
+    }),
   );
   if (rows.length === 0) {
     return (
@@ -586,7 +597,7 @@ function SuspectBanner({ batches, onPick }: { batches: PayrollBatch[]; onPick: (
         숫자 오류가 의심되는 내역 {rows.length}건
       </h2>
       <ul className="mt-2 flex flex-col gap-1">
-        {rows.map(({ key, bi, e, b, i }) => (
+        {rows.map(({ key, bi, e, b, i, guess }) => (
           <li key={key}>
             <button
               type="button"
@@ -595,8 +606,16 @@ function SuspectBanner({ batches, onPick }: { batches: PayrollBatch[]; onPick: (
             >
               <span className="font-semibold">{e.name}</span>
               <span className="text-xs text-red-700/80">{b.companyName}</span>
-              <span className="flex-1">{i.message}</span>
-              <span className="text-xs underline underline-offset-2">확인하기</span>
+              <span className="min-w-0 flex-1">
+                {i.message}
+                {guess && (
+                  <span className="mt-0.5 flex items-start gap-1 text-red-800/90">
+                    <Lightbulb aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+                    추정: {guess.text}
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 text-xs underline underline-offset-2">확인하기</span>
             </button>
           </li>
         ))}
@@ -618,9 +637,12 @@ type DetailProps = {
   onRemove: (group: ItemGroup, idx: number) => void;
   onCategory: (group: ItemGroup, idx: number, category: PayCategory) => void;
   onTotal: (field: TotalField, value: number) => void;
+  /** 숫자가 안 맞는 곳의 원인 추정 */
+  cases: MismatchCase[];
+  onFix: (fix: HintFix) => void;
 };
 
-function EmployeeDetail({ e, sourceFile, totalsBefore, history, onAmount, onAdd, onRemove, onCategory, onTotal }: DetailProps) {
+function EmployeeDetail({ e, sourceFile, totalsBefore, history, onAmount, onAdd, onRemove, onCategory, onTotal, cases, onFix }: DetailProps) {
   const [focusField, setFocusField] = useState<string | null>(null);
   /** 수정 버튼을 눌렀을 때만 금액·분류를 바꿀 수 있다. 다른 직원을 고르면 key가 바뀌어 다시 보기 상태로 돌아간다 */
   const [editing, setEditing] = useState(false);
@@ -647,6 +669,7 @@ function EmployeeDetail({ e, sourceFile, totalsBefore, history, onAmount, onAdd,
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {e.issues.length > 0 && <IssueList issues={e.issues} onPick={setFocusField} />}
+        {cases.length > 0 && <MismatchHints cases={cases} onFix={onFix} onPick={setFocusField} />}
 
         <div className="grid gap-5 2xl:grid-cols-2">
           <ItemTable
@@ -762,8 +785,8 @@ function ItemTable({ title, group, items, issues, categories, focusField, onFocu
             return (
               <tr key={field} className={`border-t ${lv ? LEVEL_STYLE[lv].cell : ""} ${isFocused ? "outline-2 outline-foreground" : ""}`}>
                 <td className="py-1.5 pr-2 pl-1 align-top">
-                  <div className="flex items-center gap-1">
-                    <span>{it.label}</span>
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                    <span className="font-medium">{it.label}</span>
                     {it.taxFree && <span className="text-xs text-muted-foreground">비과세</span>}
                     {it.edited && <EditedTag>{isAdded(it) ? "추가" : "수정"}</EditedTag>}
                     {it.source?.cell && (
@@ -1027,6 +1050,55 @@ function IssueList({ issues, onPick }: { issues: Issue[]; onPick?: (field: strin
         </li>
       ))}
     </ul>
+  );
+}
+
+const CONFIDENCE_STYLE: Record<MismatchCase["hints"][number]["confidence"], string> = {
+  높음: "bg-indigo-600 text-white",
+  보통: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200",
+  낮음: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300",
+};
+
+/** 숫자가 안 맞을 때 원인 추정. 고치기를 누르면 그 값으로 반영하고 수정 기록에 남긴다 */
+function MismatchHints({ cases, onFix, onPick }: { cases: MismatchCase[]; onFix: (fix: HintFix) => void; onPick: (field: string) => void }) {
+  return (
+    <section aria-label="원인 추정" className="flex flex-col gap-3 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 text-sm dark:border-indigo-900 dark:bg-indigo-950/30">
+      <h3 className="flex items-center gap-1.5 font-semibold text-indigo-900 dark:text-indigo-200">
+        <Lightbulb aria-hidden className="size-4 shrink-0" />
+        원인 추정
+        <span className="text-xs font-normal text-indigo-900/70 dark:text-indigo-200/70">· 다른 달·다른 직원·4대보험·입력 실수를 비교해 찾았어요</span>
+      </h3>
+      {cases.map((c) => (
+        <div key={c.field} className="flex flex-col gap-2">
+          <button type="button" onClick={() => onPick(c.field)} className="self-start text-left font-medium underline-offset-2 hover:underline">
+            {c.title}
+          </button>
+          {c.hints.length === 0 ? (
+            <p className="text-muted-foreground">자동으로 짐작할 만한 원인을 찾지 못했어요. 원본 파일의 이 직원 줄을 직접 확인해 주세요.</p>
+          ) : (
+            <ol className="flex flex-col gap-2">
+              {c.hints.map((h, n) => (
+                <li key={n} className="flex flex-col gap-1.5 rounded-lg bg-white px-3 py-2.5 ring-1 ring-indigo-100 sm:flex-row sm:items-start sm:gap-3 dark:bg-neutral-900 dark:ring-indigo-900">
+                  <span className={`inline-flex shrink-0 items-center self-start rounded px-1.5 text-xs font-medium leading-5 ${CONFIDENCE_STYLE[h.confidence]}`}>
+                    가능성 {h.confidence}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="font-medium">{h.text}</span>
+                    <span className="text-xs leading-relaxed text-muted-foreground">{h.why}</span>
+                  </span>
+                  {h.fix && (
+                    <Button type="button" size="sm" variant="outline" className="shrink-0 self-start" onClick={() => onFix(h.fix!)}>
+                      {h.fixLabel ?? "이대로 고치기"}
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      ))}
+      <p className="text-xs text-muted-foreground">추정일 뿐이라 원본과 다를 수 있어요. 고치기를 누르면 수정 기록에 남고, 처음 상태로 되돌릴 수 있어요.</p>
+    </section>
   );
 }
 
