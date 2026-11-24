@@ -16,7 +16,7 @@ export type ColumnRole =
   | { kind: "hourlyWage" }
   | { kind: "employmentType" }
   | { kind: "department" }
-  | { kind: "position" }
+  | { kind: "position"; fallback?: boolean } // fallback: 다른 직위 열이 비어 있을 때만 쓴다
   | { kind: "employeeNo" }
   | { kind: "birthDate" }
   | { kind: "hireDate" }
@@ -75,8 +75,10 @@ const TABLE: [string[], ColumnRole][] = [
   [["시급", "rate", "시간당강사료"], { kind: "hourlyWage" }],
   [["구분", "급여형태", "근무형태", "paytype", "임금형태"], { kind: "employmentType" }],
   [["부서"], { kind: "department" }],
-  // 직급: 법인 급여대장은 '직위' 대신 '직급'(대표이사·팀장·사원 등)을 쓰는 경우가 많다
-  [["직위", "직급", "직무", "직종", "position", "과목"], { kind: "position" }],
+  [["직위", "직무", "직종", "position", "과목"], { kind: "position" }],
+  // 직급: 법인 급여대장은 '직위' 대신 '직급'(대표이사·팀장·사원 등)을 쓰는 경우가 많다.
+  // 직위와 둘 다 있으면 직급은 등급(3급, P2 등)일 수 있어서 직위를 먼저 쓴다 (열 순서와 상관없이)
+  [["직급"], { kind: "position", fallback: true }],
   [["사원코드", "사번", "empno", "사원번호"], { kind: "employeeNo" }],
   [["생년월일", "dob", "생일"], { kind: "birthDate" }],
   [["입사일", "입사일자", "입사"], { kind: "hireDate" }],

@@ -278,7 +278,12 @@ function readRow(g: Grid, r: number, h: Header, roles: (ColumnRole | undefined)[
         if (typeof v === "string" && v.trim()) e.department = v.trim();
         return;
       case "position":
-        if (typeof v === "string" && v.trim()) e.position = v.trim();
+        if (typeof v === "string" && v.trim()) {
+          // 직급(fallback)은 직위가 아직 없을 때만 넣고, 직위는 직급 값을 덮어쓴다
+          if (role.fallback) {
+            if (!e.position) e.position = v.trim();
+          } else e.position = v.trim();
+        }
         return;
       case "employeeNo":
         if (v !== null && String(v).trim()) e.employeeNo = String(v).trim();
