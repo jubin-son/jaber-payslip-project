@@ -16,7 +16,7 @@ export type ColumnRole =
   | { kind: "hourlyWage" }
   | { kind: "employmentType" }
   | { kind: "department" }
-  | { kind: "position" }
+  | { kind: "position"; fallback?: boolean } // fallback: 다른 직위 열이 비어 있을 때만 쓴다
   | { kind: "employeeNo" }
   | { kind: "birthDate" }
   | { kind: "hireDate" }
@@ -50,6 +50,9 @@ const TABLE: [string[], ColumnRole][] = [
   [["직책수당", "직무수당"], E("직책수당")],
   [["상여", "상여금", "성과급", "인센티브", "bonus"], E("상여금")],
   [["강사료", "시간강사료"], E("강사료")],
+  // 연구활동비는 일부러 넣지 않았다: 중소·벤처기업 부설연구소 연구원 등 요건을 갖춘 경우만 비과세라
+  // 열 이름만으로 비과세로 읽으면 틀릴 수 있다. '분류 못 함' 경고를 보고 해당 사업장만 기본 관리에서
+  // '기타지급 + 비과세'로 연결한다 (연결하면 tax-free.ts의 월 20만원 한도 확인도 적용된다).
 
   // 공제 항목
   [["국민연금", "연금", "np"], D("국민연금")],
@@ -73,6 +76,9 @@ const TABLE: [string[], ColumnRole][] = [
   [["구분", "급여형태", "근무형태", "paytype", "임금형태"], { kind: "employmentType" }],
   [["부서"], { kind: "department" }],
   [["직위", "직무", "직종", "position", "과목"], { kind: "position" }],
+  // 직급: 법인 급여대장은 '직위' 대신 '직급'(대표이사·팀장·사원 등)을 쓰는 경우가 많다.
+  // 직위와 둘 다 있으면 직급은 등급(3급, P2 등)일 수 있어서 직위를 먼저 쓴다 (열 순서와 상관없이)
+  [["직급"], { kind: "position", fallback: true }],
   [["사원코드", "사번", "empno", "사원번호"], { kind: "employeeNo" }],
   [["생년월일", "dob", "생일"], { kind: "birthDate" }],
   [["입사일", "입사일자", "입사"], { kind: "hireDate" }],
@@ -97,13 +103,14 @@ for (const [labels, role] of TABLE) for (const l of labels) MAP.set(normalizeLab
 const CUSTOM = new Map<string, ColumnRole>();
 
 /** 기본 관리의 '엑셀 항목 연결'을 사전에 반영한다. 정리(extractFiles) 전에 부른다 */
-export function setCustomLinks(links: { label: string; category: PayCategory | "무시" }[]) {
+export function setCustomLinks(links: { label: string; category: PayCategory | "무시"; taxFree?: boolean }[]) {
   CUSTOM.clear();
   for (const l of links) {
     const n = normalizeLabel(l.label);
     if (!n) continue;
     if (l.category === "무시") CUSTOM.set(n, { kind: "ignore" });
-    else if ((EARNING_CATEGORIES as readonly string[]).includes(l.category)) CUSTOM.set(n, E(l.category as EarningCategory));
+    // 비과세 표시는 지급 항목에만 붙인다 (검산에서 과세 금액을 셀 때 빠진다)
+    else if ((EARNING_CATEGORIES as readonly string[]).includes(l.category)) CUSTOM.set(n, E(l.category as EarningCategory, l.taxFree || undefined));
     else CUSTOM.set(n, D(l.category as DeductionCategory));
   }
 }

@@ -1,5 +1,5 @@
 "use client";
-// 기본 관리: ① 사업장별 소득 구분(근로소득/사업소득) ② 엑셀 항목 → 연결할 수당·공제 항목
+// 기본 관리: ① 사업장별 소득 구분(근로소득/사업소득) ② 엑셀 항목 → 연결할 수당·공제 항목 (+ 비과세 여부)
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -80,12 +80,13 @@ function IncomeTypeCard() {
 function ItemLinkCard({ links }: { links: ItemLink[] }) {
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState<ItemLink["category"]>("기본급");
+  const [taxFree, setTaxFree] = useState(false);
   const key = normalizeLabel(label);
   const dup = links.some((l) => normalizeLabel(l.label) === key);
   const builtin = key ? builtinRoleOf(label) : undefined;
   const builtinText =
     builtin && (builtin.kind === "earning" || builtin.kind === "deduction")
-      ? `기본으로 '${builtin.category}'(으)로 읽는 표기예요. 연결하면 이 설정이 먼저 적용돼요.`
+      ? `기본으로 '${builtin.category}'${builtin.kind === "earning" && builtin.taxFree ? "(비과세)" : ""}(으)로 읽는 표기예요. 연결하면 이 설정이 먼저 적용돼요.`
       : builtin
         ? "기본으로 금액이 아닌 열로 읽는 표기예요. 연결하면 이 설정이 먼저 적용돼요."
         : null;
@@ -93,14 +94,26 @@ function ItemLinkCard({ links }: { links: ItemLink[] }) {
 
   function add() {
     if (!ok) return;
-    settingsStore.set((s) => ({ ...s, itemLinks: [...s.itemLinks, { label: label.trim(), category }] }));
+    const link: ItemLink = { label: label.trim(), category, ...(taxFree && isEarning(category) ? { taxFree: true } : {}) };
+    settingsStore.set((s) => ({ ...s, itemLinks: [...s.itemLinks, link] }));
     setLabel("");
+    setTaxFree(false);
   }
   function remove(i: number) {
     settingsStore.set((s) => ({ ...s, itemLinks: s.itemLinks.filter((_, n) => n !== i) }));
   }
   function change(i: number, c: ItemLink["category"]) {
-    settingsStore.set((s) => ({ ...s, itemLinks: s.itemLinks.map((l, n) => (n === i ? { ...l, category: c } : l)) }));
+    // 공제·금액 아님으로 바꾸면 비과세 표시는 의미가 없어서 지운다
+    settingsStore.set((s) => ({
+      ...s,
+      itemLinks: s.itemLinks.map((l, n) => (n === i ? { label: l.label, category: c, ...(l.taxFree && isEarning(c) ? { taxFree: true } : {}) } : l)),
+    }));
+  }
+  function toggleTaxFree(i: number, on: boolean) {
+    settingsStore.set((s) => ({
+      ...s,
+      itemLinks: s.itemLinks.map((l, n) => (n === i ? { label: l.label, category: l.category, ...(on ? { taxFree: true } : {}) } : l)),
+    }));
   }
 
   return (
@@ -109,7 +122,7 @@ function ItemLinkCard({ links }: { links: ItemLink[] }) {
         <CardTitle className="text-lg">② 엑셀 항목 연결</CardTitle>
         <CardDescription>
           급여대장 엑셀의 열 이름을 어떤 수당·공제 항목으로 읽을지 정해요. 사무소마다 쓰는 이름이 달라서 자동으로 못 읽는 항목을 여기서 연결하면, 다음
-          업로드부터 바로 그 항목으로 들어가요.
+          업로드부터 바로 그 항목으로 들어가요. 연구활동비·보육수당 같은 비과세 수당은 &lsquo;비과세&rsquo;에 체크해 주세요.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -128,6 +141,7 @@ function ItemLinkCard({ links }: { links: ItemLink[] }) {
           </div>
           <span className="hidden pt-2 text-neutral-400 sm:block">→</span>
           <CategorySelect value={category} onChange={setCategory} className="sm:w-48" />
+          <TaxFreeCheck checked={taxFree} disabled={!isEarning(category)} onChange={setTaxFree} className="sm:pt-2" />
           <Button onClick={add} disabled={!ok}>
             연결 추가
           </Button>
@@ -141,6 +155,7 @@ function ItemLinkCard({ links }: { links: ItemLink[] }) {
               <tr>
                 <th className="pb-1 font-normal">엑셀 항목</th>
                 <th className="pb-1 font-normal">연결할 수당·공제 항목</th>
+                <th className="pb-1 font-normal">비과세</th>
                 <th className="w-10" />
               </tr>
             </thead>
@@ -150,6 +165,14 @@ function ItemLinkCard({ links }: { links: ItemLink[] }) {
                   <td className="py-2 font-medium">{l.label}</td>
                   <td className="py-2">
                     <CategorySelect value={l.category} onChange={(c) => change(i, c)} className="w-48" />
+                  </td>
+                  <td className="py-2">
+                    <TaxFreeCheck
+                      checked={!!l.taxFree}
+                      disabled={!isEarning(l.category)}
+                      onChange={(on) => toggleTaxFree(i, on)}
+                      ariaLabel={`${l.label} 비과세`}
+                    />
                   </td>
                   <td className="py-2 text-right">
                     <button type="button" aria-label={`${l.label} 연결 삭제`} onClick={() => remove(i)} className="text-neutral-400 hover:text-red-600">
@@ -168,13 +191,54 @@ function ItemLinkCard({ links }: { links: ItemLink[] }) {
             {[...EARNING_CATEGORIES, ...DEDUCTION_CATEGORIES].map((c) => (
               <p key={c} className="flex gap-2 py-0.5">
                 <span className="w-24 shrink-0 font-medium">{c}</span>
-                <span className="text-muted-foreground">{builtinLabelsOf(c).join(", ") || "-"}</span>
+                <span className="text-muted-foreground">
+                  {builtinLabelsOf(c)
+                    .map((l) => {
+                      const r = builtinRoleOf(l);
+                      return r?.kind === "earning" && r.taxFree ? `${l}(비과세)` : l;
+                    })
+                    .join(", ") || "-"}
+                </span>
               </p>
             ))}
           </div>
         </details>
       </CardContent>
     </Card>
+  );
+}
+
+const isEarning = (c: ItemLink["category"]) => (EARNING_CATEGORIES as readonly string[]).includes(c);
+
+/** 지급 항목을 비과세로 읽을지. 공제·금액 아님일 때는 끈다 */
+function TaxFreeCheck({
+  checked,
+  disabled,
+  onChange,
+  ariaLabel = "비과세",
+  className = "",
+}: {
+  checked: boolean;
+  disabled: boolean;
+  onChange: (on: boolean) => void;
+  ariaLabel?: string;
+  className?: string;
+}) {
+  return (
+    <label
+      className={`flex items-center gap-1.5 whitespace-nowrap text-sm ${disabled ? "text-neutral-300" : "text-neutral-700"} ${className}`}
+      title={disabled ? "지급(수당) 항목일 때만 고를 수 있어요" : "비과세 수당이면 체크 (검산 때 과세 금액에서 빠지고 명세서에 '비과세'로 표시돼요)"}
+    >
+      <input
+        type="checkbox"
+        aria-label={ariaLabel}
+        checked={checked && !disabled}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className="size-4"
+      />
+      비과세
+    </label>
   );
 }
 

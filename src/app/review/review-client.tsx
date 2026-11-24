@@ -58,8 +58,11 @@ type ItemGroup = "earnings" | "deductions";
 const ADDED_MARK = "담당자가 추가";
 const isAdded = (it: PayItem) => it.source?.text === ADDED_MARK;
 
+/** 이 분류로 바꾸거나 추가하면 비과세로 표시하는 지급 항목 (파서 사전의 기본 비과세 분류와 같다) */
+const TAX_FREE_CATEGORIES: PayCategory[] = ["식대", "차량유지비"];
+
 /** 검산으로 다시 만드는 issue. 나머지(매칭·수신동의·분류 등)는 그대로 둔다 */
-const RECHECK_CODES: Issue["code"][] = ["SUM_MISMATCH", "NET_MISMATCH", "RATE_OUT_OF_RANGE"];
+const RECHECK_CODES: Issue["code"][] = ["SUM_MISMATCH", "NET_MISMATCH", "RATE_OUT_OF_RANGE", "TAX_FREE_LIMIT"];
 /** 담당자가 그 칸을 직접 고치면 "확인했다"고 보고 지우는 issue */
 const CLEARED_BY_EDIT: Issue["code"][] = ["UNKNOWN_ITEM", "LOW_CONFIDENCE"];
 
@@ -257,7 +260,14 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
     updateEmployee(
       selected.id,
       (e) => {
-        e[group].push({ label, category, amount, source: { text: ADDED_MARK }, edited: { before: 0, by: "user" } });
+        e[group].push({
+          label,
+          category,
+          amount,
+          ...(group === "earnings" && TAX_FREE_CATEGORIES.includes(category) ? { taxFree: true } : {}),
+          source: { text: ADDED_MARK },
+          edited: { before: 0, by: "user" },
+        });
         return { next: e };
       },
       { field: `${group}.${idx}`, kind: "add", label: `${label} 항목 추가`, before: null, after: amount },
@@ -283,7 +293,14 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
     updateEmployee(
       selected.id,
       (e) => {
-        e[group][idx].category = category;
+        const it = e[group][idx];
+        it.category = category;
+        // 분류를 바꾸면 비과세 표시도 따라 바꾼다 (식대·차량유지비면 켜고, 다른 분류면 끈다).
+        // 예전에는 '점심값'을 식대로 바꿔도 과세로 남고, 식대를 기본급으로 바꿔도 '비과세'가 남았다.
+        if (group === "earnings" && it.category !== item.category) {
+          if (TAX_FREE_CATEGORIES.includes(category)) it.taxFree = true;
+          else delete it.taxFree;
+        }
         return { next: e, touched: `${group}.${idx}` };
       },
       { field: `${group}.${idx}`, kind: "category", label: `${item.label} 분류`, before: item.category, after: category },
