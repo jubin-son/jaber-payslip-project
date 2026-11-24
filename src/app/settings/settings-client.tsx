@@ -1,5 +1,6 @@
 "use client";
-// 기본 관리: 사업주 본인이 ① 내 사업장 정보 ② 소득 구분 ③ 상시근로자 수 ④ 엑셀 항목 연결(+ 비과세)을 정하는 화면.
+// 기본 관리: 사업주 본인이 ① 내 사업장 정보 ② 상시근로자 수 ③ 엑셀 항목 연결(+ 비과세)을 정하는 화면.
+// 소득 구분(근로소득·사업소득)은 직원마다 달라서 임직원 관리에서 정한다.
 // 값은 로그인한 사업주(지금은 테스트용으로 고른 사업장)의 것만 보이고 고쳐진다.
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
@@ -7,12 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { JaberCompany } from "@/lib/jaber-db";
 import { jaberCompanies } from "@/lib/jaber-db";
-import { updateMyBusiness, useOwner, type CompanyProfile, type IncomeType, type ItemLink } from "@/lib/hr-store";
+import { updateMyBusiness, useOwner, type CompanyProfile, type ItemLink } from "@/lib/hr-store";
 import { builtinLabelsOf, builtinRoleOf, normalizeLabel } from "@/lib/parser/dictionary";
 import { DEDUCTION_CATEGORIES, EARNING_CATEGORIES } from "@/types/payroll";
 import type { HeadcountSetting } from "@/lib/wage-statement";
-
-const INCOME_TYPES: IncomeType[] = ["근로소득", "사업소득"];
 
 export function SettingsClient() {
   const owner = useOwner();
@@ -21,7 +20,6 @@ export function SettingsClient() {
     <div className="flex flex-col gap-6">
       {/* key: 테스트로 사업주를 바꾸면 입력 칸을 새 사업장 값으로 다시 채운다 */}
       <ProfileCard key={owner.code} company={owner.company} />
-      <IncomeTypeCard current={owner.business.incomeType} />
       <HeadcountCard current={owner.business.headcount ?? "자동"} />
       <ItemLinkCard links={owner.business.itemLinks} />
     </div>
@@ -121,47 +119,10 @@ function ProfileCard({ company }: { company: JaberCompany }) {
   );
 }
 
-// ---------- ② 소득 구분 ----------
-
-function IncomeTypeCard({ current }: { current: IncomeType }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">② 소득 구분</CardTitle>
-        <CardDescription>
-          직원에게 주는 돈이 근로소득(4대보험·근로소득세)인지 사업소득(3.3% 원천징수)인지 정해요. 사업소득으로 정하면 명세서 제목이 &lsquo;사업소득
-          지급명세서&rsquo;로 나가요.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div role="radiogroup" aria-label="소득 구분" className="grid gap-3 sm:grid-cols-2">
-          {INCOME_TYPES.map((t) => (
-            <button
-              key={t}
-              type="button"
-              role="radio"
-              aria-checked={current === t}
-              onClick={() => updateMyBusiness((b) => ({ ...b, incomeType: t }))}
-              className={`flex flex-col gap-1 rounded-2xl px-4 py-3 text-left ring-1 transition-colors ${
-                current === t ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white ring-neutral-200 hover:bg-neutral-50"
-              }`}
-            >
-              <span className="font-semibold">{t}</span>
-              <span className={`text-xs ${current === t ? "text-neutral-300" : "text-muted-foreground"}`}>
-                {t === "근로소득" ? "4대보험·근로소득세를 떼는 직원 (대부분)" : "프리랜서·강사처럼 3.3%를 떼는 경우"}
-              </span>
-            </button>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---------- ③ 상시근로자 수 ----------
+// ---------- ② 상시근로자 수 ----------
 
 const HEADCOUNT_OPTIONS: { value: HeadcountSetting; title: string; text: string }[] = [
-  { value: "자동", title: "자동 (급여대장 인원으로 추정)", text: "올린 급여대장의 직원 수(일용·단시간 포함, 3.3% 강사 제외)로 달마다 판단해요" },
+  { value: "자동", title: "자동 (급여대장 인원으로 추정)", text: "올린 급여대장의 직원 수(일용·단시간 포함, 사업소득자 제외)로 달마다 판단해요" },
   { value: "5이상", title: "상시 5명 이상", text: "연장·야간·휴일 50% 가산율, 법정 연차수당, 공휴일 유급휴일이 적용돼요" },
   { value: "5미만", title: "상시 5명 미만", text: "가산·연차·공휴일 유급은 법정 의무가 아니에요. 주휴수당은 똑같이 적용돼요" },
 ];
@@ -170,7 +131,7 @@ function HeadcountCard({ current }: { current: HeadcountSetting }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">③ 상시근로자 수</CardTitle>
+        <CardTitle className="text-lg">② 상시근로자 수</CardTitle>
         <CardDescription>
           임금명세서를 주는 의무와 기재사항은 사업장 규모와 상관없이 같아요. 다만 상시 5명 미만이면 연장·야간·휴일 가산율과 법정 연차수당을 적을 필요가
           없어서, 명세서의 계산방법과 확인 메모가 달라져요. 상시근로자 수는 전 1개월 연인원을 가동일수로 나눠 세므로 달마다 바뀔 수 있어요.
@@ -202,7 +163,7 @@ function HeadcountCard({ current }: { current: HeadcountSetting }) {
   );
 }
 
-// ---------- ④ 엑셀 항목 연결 ----------
+// ---------- ③ 엑셀 항목 연결 ----------
 
 function ItemLinkCard({ links }: { links: ItemLink[] }) {
   const [label, setLabel] = useState("");
@@ -246,7 +207,7 @@ function ItemLinkCard({ links }: { links: ItemLink[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">④ 엑셀 항목 연결</CardTitle>
+        <CardTitle className="text-lg">③ 엑셀 항목 연결</CardTitle>
         <CardDescription>
           급여대장 엑셀의 열 이름을 어떤 수당·공제 항목으로 읽을지 정해요. 사무소마다 쓰는 이름이 달라서 자동으로 못 읽는 항목을 여기서 연결하면, 다음
           업로드부터 바로 그 항목으로 들어가요. 연구활동비·보육수당 같은 비과세 수당은 &lsquo;비과세&rsquo;에 체크해 주세요.

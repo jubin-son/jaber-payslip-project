@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PayslipCard, statementContextOf, useStatementContext } from "./payslip-card";
-import { settingsStore } from "@/lib/hr-store";
+import { rosterStore, settingsStore } from "@/lib/hr-store";
 import { statementNotes, type StatementContext } from "@/lib/wage-statement";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
 import { identityParts, periodText, useReviewed, won } from "./use-reviewed";
@@ -73,6 +73,7 @@ export function PayslipsClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const settings = settingsStore.use();
+  const roster = rosterStore.use();
 
   if (reviewed.status === "loading") return <p className="text-muted-foreground">불러오는 중…</p>;
   if (reviewed.status === "no-file") {
@@ -106,7 +107,7 @@ export function PayslipsClient() {
   const total = ready.reduce((n, e) => n + e.netPay, 0);
 
   const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
-  const ctx = statementContextOf(settings, batch);
+  const ctx = statementContextOf(settings, roster, batch);
 
   async function copyLink(id: string) {
     try {
@@ -173,7 +174,7 @@ export function PayslipsClient() {
             const active = e.id === selected.id;
             const ok = confirmed.has(e.id);
             const hasError = e.issues.some((i) => i.level === "error");
-            const noteCount = statementNotes(e, ctx).filter((n) => n.level === "warning").length;
+            const noteCount = statementNotes(e, ctx.forEmployee(e)).filter((n) => n.level === "warning").length;
             return (
               <li key={e.id} className={`flex flex-col gap-2 rounded-lg border p-3 ${active ? "border-foreground bg-muted" : ""}`}>
                 <button type="button" disabled={!ok} onClick={() => setSelectedId(e.id)} className="flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60">
@@ -232,7 +233,7 @@ function SelectedPreview({ batch, employee }: { batch: PayrollBatch; employee: E
   const ctx = useStatementContext(batch);
   return (
     <>
-      <StatementNotes employee={employee} ctx={ctx} />
+      <StatementNotes employee={employee} ctx={ctx.forEmployee(employee)} />
       <p className="text-sm text-muted-foreground">미리보기 · 직원이 링크로 열면 이렇게 보여요</p>
       <PayslipCard batch={batch} employee={employee} />
     </>

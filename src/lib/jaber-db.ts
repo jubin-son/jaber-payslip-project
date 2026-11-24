@@ -19,6 +19,10 @@ export type JaberCompany = {
   joinedAt: string; // 자버 가입일 "yyyy-mm-dd"
 };
 
+/** 직원에게 주는 돈의 소득 구분. 근로소득은 4대보험·근로소득세, 사업소득은 3.3% 원천징수(프리랜서·강사) */
+export type IncomeType = "근로소득" | "사업소득";
+export const INCOME_TYPES: IncomeType[] = ["근로소득", "사업소득"];
+
 /** 사업장이 자버에 등록한 직원 (직원연락처 1행) */
 export type JaberEmployee = {
   memberId: string; // 회원번호
@@ -30,6 +34,7 @@ export type JaberEmployee = {
   email?: string; // 이메일(선택 입력)
   address?: string; // 주소(임직원 관리에서 입력. 자버 직원연락처 원본에는 없음)
   kakaoConsent: boolean; // 알림톡 수신동의 Y → true
+  incomeType?: IncomeType; // 소득 구분(임직원 관리에서 입력). 없으면 근로소득
   registeredAt: string; // 등록일
 };
 

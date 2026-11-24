@@ -3,19 +3,29 @@
 // 휴대폰·컴퓨터 모두에서 보이고, 인쇄·PDF로 저장할 때는 테두리와 그림자를 없앤다.
 import type { EmployeePay, PayItem, PayrollBatch } from "@/types/payroll";
 import { dateText, identityParts, periodText, won } from "./use-reviewed";
-import { headcountOf, incomeTypeOf, settingsStore, type HrSettings } from "@/lib/hr-store";
+import { headcountOf, incomeTypeOfEmployee, rosterStore, settingsStore, type HrSettings } from "@/lib/hr-store";
+import type { JaberEmployee } from "@/lib/jaber-db";
 import { calcMethodOf, overtimeRuleText, resolveHeadcount, type StatementContext } from "@/lib/wage-statement";
 
-/** 기본 관리(소득 구분·상시근로자 수)와 이 급여대장 인원으로 명세서 기재 기준을 정한다 */
-export type BatchStatementContext = StatementContext & { estimated: boolean; count: number };
+/**
+ * 명세서 기재 기준: 상시근로자 수(기본 관리)는 사업장 단위, 소득 구분(임직원 관리)은 직원 단위로 정한다.
+ * forEmployee(e)로 직원 한 명의 기준을 얻는다.
+ */
+export type BatchStatementContext = {
+  headcount: StatementContext["headcount"];
+  estimated: boolean;
+  count: number;
+  forEmployee: (e: EmployeePay) => StatementContext;
+};
 
 export function useStatementContext(batch: PayrollBatch): BatchStatementContext {
-  return statementContextOf(settingsStore.use(), batch);
+  return statementContextOf(settingsStore.use(), rosterStore.use(), batch);
 }
 
-export function statementContextOf(settings: HrSettings | null, batch: PayrollBatch): BatchStatementContext {
-  const hc = resolveHeadcount(headcountOf(settings, batch.companyCode), batch);
-  return { headcount: hc.value, estimated: hc.estimated, count: hc.count, businessIncome: incomeTypeOf(settings, batch.companyCode) === "사업소득" };
+export function statementContextOf(settings: HrSettings | null, roster: JaberEmployee[] | null, batch: PayrollBatch): BatchStatementContext {
+  const isBiz = (e: EmployeePay) => incomeTypeOfEmployee(roster, e) === "사업소득";
+  const hc = resolveHeadcount(headcountOf(settings, batch.companyCode), batch, isBiz);
+  return { headcount: hc.value, estimated: hc.estimated, count: hc.count, forEmployee: (e) => ({ headcount: hc.value, businessIncome: isBiz(e) }) };
 }
 
 function Rows({
@@ -68,8 +78,8 @@ export function PayslipCard({ batch, employee: e }: { batch: PayrollBatch; emplo
   ].filter(Boolean);
 
   const idInfo = identityParts(e); // 같은 이름 구분용 (사번·생년월일·입사일)
-  // 기본 관리에서 사업소득으로 정한 사업장은 제목을 바꾼다
-  const ctx = useStatementContext(batch);
+  // 임직원 관리에서 사업소득으로 정한 직원은 제목을 바꾼다
+  const ctx = useStatementContext(batch).forEmployee(e);
   const docTitle = ctx.businessIncome ? "사업소득 지급명세서" : "급여명세서";
   const rule = overtimeRuleText(e, ctx);
 

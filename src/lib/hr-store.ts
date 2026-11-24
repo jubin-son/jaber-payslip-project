@@ -3,14 +3,14 @@
 // 탭을 닫아도 남는다. 나중에 저장소(Supabase)를 붙이면 이 파일만 바꾸면 된다.
 // 이 화면을 쓰는 사람은 자버에 가입한 사업주 본인(사업장 1곳)이다.
 //   - 로그인한 사업주: 아직 로그인이 없어서 테스트용으로 사업장 16곳 중 하나를 고른다 (ownerStore)
-//   - 기본 관리: 내 사업장 정보와 급여명세서 발행 설정(소득 구분, 엑셀 항목 → 표준 항목 연결)
-//   - 임직원 관리: 직원 명부. 처음에는 자버 직원연락처(테스트 데이터)로 채워 둔다. 화면에는 내 사업장 직원만 보인다
+//   - 기본 관리: 내 사업장 정보와 급여명세서 발행 설정(상시근로자 수, 엑셀 항목 → 표준 항목 연결)
+//   - 임직원 관리: 직원 명부(소득 구분 포함). 처음에는 자버 직원연락처(테스트 데이터)로 채워 둔다. 화면에는 내 사업장 직원만 보인다
 import { useSyncExternalStore } from "react";
-import type { PayCategory } from "@/types/payroll";
-import { jaberCompanies, jaberEmployees, type JaberCompany, type JaberEmployee } from "@/lib/jaber-db";
+import type { EmployeePay, PayCategory } from "@/types/payroll";
+import { jaberCompanies, jaberEmployees, type IncomeType, type JaberCompany, type JaberEmployee } from "@/lib/jaber-db";
 import type { HeadcountSetting } from "@/lib/wage-statement";
 
-export type IncomeType = "근로소득" | "사업소득";
+export type { IncomeType };
 
 /**
  * 급여대장 엑셀의 열 이름을 어떤 표준 항목으로 읽을지. "무시"면 금액으로 읽지 않는다.
@@ -26,7 +26,6 @@ export type CompanyProfile = Omit<JaberCompany, "code" | "joinedAt">;
 export type BusinessSettings = {
   /** 자버 가입 정보에서 고친 칸만 담는다 */
   profile: Partial<CompanyProfile>;
-  incomeType: IncomeType;
   itemLinks: ItemLink[];
   /** 상시근로자 수 5명 이상/미만. 가산율·연차 같은 임금명세서 기재가 달라진다. "자동"이면 급여대장 인원으로 추정 */
   headcount?: HeadcountSetting;
@@ -36,7 +35,7 @@ export type BusinessSettings = {
 export type HrSettings = { byCompany: Record<string, BusinessSettings> };
 
 const DEFAULT_SETTINGS: HrSettings = { byCompany: {} };
-const DEFAULT_BUSINESS: BusinessSettings = { profile: {}, incomeType: "근로소득", itemLinks: [], headcount: "자동" };
+const DEFAULT_BUSINESS: BusinessSettings = { profile: {}, itemLinks: [], headcount: "자동" };
 
 function createLocalStore<T>(key: string, initial: () => T) {
   let cache: T | undefined;
@@ -106,8 +105,10 @@ export function headcountOf(settings: HrSettings | null, companyCode?: string): 
   return businessOf(settings, companyCode).headcount ?? "자동";
 }
 
-export function incomeTypeOf(settings: HrSettings | null, companyCode?: string): IncomeType {
-  return businessOf(settings, companyCode).incomeType;
+/** 급여대장 직원의 소득 구분: 임직원 관리 명부에서 매칭된 직원의 값 (매칭이 안 됐거나 비어 있으면 근로소득) */
+export function incomeTypeOfEmployee(roster: JaberEmployee[] | null, e: Pick<EmployeePay, "match">): IncomeType {
+  const id = e.match?.memberId;
+  return (id && roster?.find((r) => r.memberId === id)?.incomeType) || "근로소득";
 }
 
 /** 내 사업장(지금 로그인한 사업주)의 기본 관리 값을 고친다 */

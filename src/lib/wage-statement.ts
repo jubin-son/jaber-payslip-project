@@ -20,7 +20,7 @@ export type Headcount = "5이상" | "5미만";
 
 export type StatementContext = {
   headcount: Headcount;
-  /** 기본 관리 소득 구분이 사업소득(3.3%)인지 */
+  /** 이 직원이 임직원 관리에서 사업소득(3.3%)으로 정해졌는지 */
   businessIncome: boolean;
 };
 
@@ -38,10 +38,14 @@ const sum = (xs: { amount: number }[]) => xs.reduce((a, b) => a + b.amount, 0);
 /**
  * 상시근로자 수 판단.
  * 법은 '사유 발생일 전 1개월 연인원 ÷ 가동일수'로 세지만(시행령 제7조의2), 급여대장만으로는 알 수 없어서
- * "자동"일 때는 이번 급여대장 인원(일용·단시간 포함)으로 추정한다. 강사(3.3%)는 근로자가 아니라 빼고 센다.
+ * "자동"일 때는 이번 급여대장 인원(일용·단시간 포함)으로 추정한다. 강사·사업소득자(3.3%)는 근로자가 아니라 빼고 센다.
  */
-export function resolveHeadcount(setting: HeadcountSetting | undefined, batch: Pick<PayrollBatch, "employees">): { value: Headcount; estimated: boolean; count: number } {
-  const count = batch.employees.filter((e) => e.employmentType !== "강사").length;
+export function resolveHeadcount(
+  setting: HeadcountSetting | undefined,
+  batch: Pick<PayrollBatch, "employees">,
+  isBusinessIncome: (e: EmployeePay) => boolean = () => false,
+): { value: Headcount; estimated: boolean; count: number } {
+  const count = batch.employees.filter((e) => e.employmentType !== "강사" && !isBusinessIncome(e)).length;
   if (setting === "5이상" || setting === "5미만") return { value: setting, estimated: false, count };
   return { value: count >= 5 ? "5이상" : "5미만", estimated: true, count };
 }
