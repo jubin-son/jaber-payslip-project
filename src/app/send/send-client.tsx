@@ -255,7 +255,7 @@ export function SendClient() {
                     (opens[e.id] ? (
                       <p className="text-xs text-emerald-700 dark:text-emerald-400">✓ 열람 확인 · {fmtTime(opens[e.id].at)}</p>
                     ) : (
-                      <p className="text-xs text-muted-foreground">아직 열어보지 않았어요</p>
+                      <p className="text-xs text-muted-foreground">미열람</p>
                     ))}
                 </li>
               );

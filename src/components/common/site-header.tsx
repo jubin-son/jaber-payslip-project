@@ -12,10 +12,17 @@ export const STEPS = [
   { href: "/send", no: 4, label: "발송" },
 ];
 
+/** 지금 경로가 급여명세서의 몇 단계인지. 발송 관리(/send/history)는 단계가 아니다 */
+export function stepOf(pathname: string) {
+  if (pathname.startsWith("/send/history")) return undefined;
+  if (pathname.startsWith("/organize")) return STEPS[0];
+  return STEPS.find((s) => pathname === s.href || pathname.startsWith(`${s.href}/`));
+}
+
 // 모든 관리자 화면 공통 상단 바. 홈에서는 '시작하기', 단계 화면에서는 1~4단계 이동을 보여준다.
 export function SiteHeader() {
   const pathname = usePathname();
-  const current = STEPS.find((s) => pathname.startsWith(s.href));
+  const current = stepOf(pathname);
   const isHome = pathname === "/";
 
   return (

@@ -1,12 +1,13 @@
 "use client";
 // 임직원 관리: 사업주가 내 사업장 직원을 ① 엑셀 업로드 또는 직접 입력으로 등록하고 ② 목록에서 고친다(회원번호 6자리 자동 부여).
+// 소득 구분(근로소득·사업소득 3.3%)도 직원마다 여기서 정한다. 사업소득으로 정한 직원은 명세서 제목이 '사업소득 지급명세서'가 된다.
 // 명부는 hr-store(localStorage)에 두고, 급여대장을 올리면 이 명부로 직원을 찾는다. 화면에는 내 사업장 직원만 나온다.
 import { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { Download, FileSpreadsheet, Pencil, RotateCcw, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { jaberCompanies, type JaberCompany, type JaberEmployee } from "@/lib/jaber-db";
+import { INCOME_TYPES, jaberCompanies, type IncomeType, type JaberCompany, type JaberEmployee } from "@/lib/jaber-db";
 import { findCompanyByName, normBirth, normName } from "@/lib/jaber-match";
 import { nextMemberId, rosterStore, useOwner } from "@/lib/hr-store";
 import { decodeCsv } from "@/lib/parser/read-file";
@@ -27,6 +28,7 @@ const HEADERS: Record<keyof Draft | "ignore", string[]> = {
   address: ["주소"],
   email: ["이메일", "메일", "email"],
   kakaoConsent: ["알림톡수신동의", "알림톡", "수신동의", "알림톡동의"],
+  incomeType: ["소득구분", "소득유형", "소득종류"],
   companyCode: ["사업장코드"],
   ignore: [],
 };
@@ -40,6 +42,15 @@ function fieldOf(header: unknown): keyof Draft | undefined {
 
 function yes(v: unknown): boolean {
   return ["y", "yes", "o", "동의", "true", "1", "예", "✓", "v"].includes(norm(v));
+}
+
+/** 소득 구분 칸 읽기. 비어 있으면 근로소득, 읽을 수 없으면 undefined */
+function incomeFrom(v: unknown): IncomeType | undefined {
+  const s = norm(v);
+  if (!s) return "근로소득";
+  if (/사업|3\.3|프리|강사|용역/.test(s)) return "사업소득";
+  if (/근로|급여|정규|직원|월급|시급|일용/.test(s)) return "근로소득";
+  return undefined;
 }
 
 function cellText(v: unknown): string {
@@ -93,11 +104,18 @@ function readRows(fileName: string, buf: ArrayBuffer, roster: JaberEmployee[], o
       rows.push({ line: r + 1, raw, problem: `생년월일 '${birthText}'을(를) 읽지 못했어요` });
       continue;
     }
+    const incomeText = cellText(get("incomeType"));
+    const incomeType = incomeFrom(incomeText);
+    if (!incomeType) {
+      rows.push({ line: r + 1, raw, problem: `소득구분 '${incomeText}'을(를) 읽지 못했어요 (근로소득·사업소득)` });
+      continue;
+    }
     const draft: Draft = {
       companyCode: own.code,
       companyName: own.name,
       name,
       birthDate,
+      incomeType,
       phone: cellText(get("phone")) || undefined,
       address: cellText(get("address")) || undefined,
       email: cellText(get("email")) || undefined,
@@ -148,7 +166,7 @@ export function EmployeesClient() {
         <CardHeader>
           <CardTitle className="text-lg">① 직원 등록</CardTitle>
           <CardDescription>
-            {own.name} 직원을 엑셀 양식으로 한 번에 올리거나, 한 명씩 직접 입력해요. 이름 · 생년월일 · 전화번호 · 주소 · 알림톡 수신동의를 받아요.
+            {own.name} 직원을 엑셀 양식으로 한 번에 올리거나, 한 명씩 직접 입력해요. 이름 · 생년월일 · 전화번호 · 주소 · 알림톡 수신동의 · 소득 구분을 받아요.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -175,10 +193,13 @@ export function EmployeesClient() {
 
 function downloadTemplate() {
   const ws = XLSX.utils.aoa_to_sheet([
-    ["이름", "생년월일", "전화번호", "주소", "알림톡 수신동의"],
-    ["홍길동", "1995-03-12", "010-0000-0000", "서울특별시 마포구 와우산로 00", "Y"],
+    ["이름", "생년월일", "전화번호", "주소", "알림톡 수신동의", "소득구분"],
+    ["홍길동", "1995-03-12", "010-0000-0000", "서울특별시 마포구 와우산로 00", "Y", "근로소득"],
+    ["김강사", "1988-07-01", "010-0000-0001", "서울특별시 마포구 와우산로 01", "Y", "사업소득"],
   ]);
-  ws["!cols"] = [{ wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 32 }, { wch: 14 }];
+  ws["!cols"] = [{ wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 32 }, { wch: 14 }, { wch: 12 }];
+  // 소득구분 칸 안내 (비워 두면 근로소득)
+  ws["F1"].c = [{ a: "자버", t: "근로소득: 4대보험·근로소득세를 떼는 직원\n사업소득: 3.3%를 떼는 프리랜서·강사\n비워 두면 근로소득으로 등록돼요" }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "직원목록");
   XLSX.writeFile(wb, "자버_임직원_등록양식.xlsx");
@@ -229,6 +250,7 @@ function ExcelImport({ roster, own, onDone, onCancel }: { roster: JaberEmployee[
                   <span className="font-medium">
                     {r.draft.name}
                     {r.draft.birthDate && <span className="font-normal text-muted-foreground"> · {r.draft.birthDate}</span>}
+                    <span className="font-normal text-muted-foreground"> · {r.draft.incomeType ?? "근로소득"}</span>
                   </span>
                 ) : (
                   <span className="text-muted-foreground">{r.raw}</span>
@@ -262,12 +284,14 @@ function ManualForm({ roster, own, onDone, onCancel }: { roster: JaberEmployee[]
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [consent, setConsent] = useState(true);
+  const [incomeType, setIncomeType] = useState<IncomeType>("근로소득");
   const draft: Draft | null = name.trim()
     ? {
         companyCode: own.code,
         companyName: own.name,
         name: name.trim(),
         birthDate: birthDate || undefined,
+        incomeType,
         phone: phone.trim() || undefined,
         address: address.trim() || undefined,
         kakaoConsent: consent,
@@ -296,6 +320,10 @@ function ManualForm({ roster, own, onDone, onCancel }: { roster: JaberEmployee[]
       <label className={field}>
         <span className="font-medium">전화번호</span>
         <input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" className={box} />
+      </label>
+      <label className={field}>
+        <span className="font-medium">소득 구분</span>
+        <IncomeSelect value={incomeType} onChange={setIncomeType} className={box} />
       </label>
       <label className={`${field} sm:col-span-2`}>
         <span className="font-medium">주소</span>
@@ -335,9 +363,38 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
       .sort((a, b) => b.memberId.localeCompare(a.memberId));
   }, [mine, q]);
 
+  /** 체크한 직원의 회원번호. 검색으로 안 보이게 된 직원은 지우는 대상에서 뺀다 */
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const visiblePicked = rows.filter((e) => picked.has(e.memberId));
+  const allPicked = rows.length > 0 && visiblePicked.length === rows.length;
+
+  function toggle(id: string, on: boolean) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+  function toggleAll(on: boolean) {
+    setPicked(on ? new Set(rows.map((e) => e.memberId)) : new Set());
+  }
+  function removeIds(ids: string[], what: string) {
+    if (ids.length === 0 || !window.confirm(`${what} 명부에서 지울까요? 되돌릴 수 없어요.`)) return;
+    const del = new Set(ids);
+    rosterStore.set((prev) => prev.filter((x) => !del.has(x.memberId)));
+    setPicked((prev) => new Set([...prev].filter((id) => !del.has(id))));
+  }
   function remove(e: JaberEmployee) {
-    if (!window.confirm(`${e.name}(${e.memberId}) 직원을 명부에서 지울까요?`)) return;
-    rosterStore.set((prev) => prev.filter((x) => x.memberId !== e.memberId));
+    removeIds([e.memberId], `${e.name}(${e.memberId}) 직원을`);
+  }
+  function removePicked() {
+    const names = visiblePicked.map((e) => e.name);
+    const shown = names.length > 3 ? `${names.slice(0, 3).join(", ")} 외 ${names.length - 3}명` : names.join(", ");
+    removeIds(
+      visiblePicked.map((e) => e.memberId),
+      `선택한 직원 ${visiblePicked.length}명(${shown})을`,
+    );
   }
   function resetAll() {
     if (!window.confirm("직접 등록·수정·삭제한 내용을 지우고 처음 테스트 데이터(자버 직원연락처)로 되돌릴까요? 테스트로 고른 다른 사업장 명부도 함께 되돌아가요.")) return;
@@ -348,25 +405,41 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">② 등록된 임직원 {mine.length}명</CardTitle>
-        <CardDescription>급여대장을 올리면 이 명부에서 직원을 찾아 연락처와 알림톡 수신동의를 붙여요. 연필 버튼으로 한 명씩 고칠 수 있고, 회원번호는 바뀌지 않아요.</CardDescription>
+        <CardDescription>급여대장을 올리면 이 명부에서 직원을 찾아 연락처·알림톡 수신동의·소득 구분을 붙여요. 사업소득(3.3%)으로 정한 직원은 명세서가 &lsquo;사업소득 지급명세서&rsquo;로 나가요. 연필 버튼으로 한 명씩 고치고, 체크해서 여러 명을 한 번에 지울 수 있어요.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <input aria-label="이름·전화번호 검색" placeholder="이름·전화번호 검색" value={q} onChange={(e) => setQ(e.target.value)} className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-sm sm:max-w-60" />
           <span className="text-sm text-muted-foreground">{rows.length}명</span>
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={resetAll}>
+          <Button variant="outline" size="sm" className="ml-auto" disabled={visiblePicked.length === 0} onClick={removePicked}>
+            <Trash2 className="size-4" /> 선택 삭제{visiblePicked.length > 0 ? ` ${visiblePicked.length}명` : ""}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={resetAll}>
             <RotateCcw className="size-4" /> 테스트 데이터로 되돌리기
           </Button>
         </div>
         <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full min-w-[680px] text-sm">
+          <table className="w-full min-w-[780px] text-sm">
             <thead className="bg-neutral-50 text-left text-xs text-muted-foreground">
               <tr>
+                <th className="w-10 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    aria-label="보이는 직원 모두 선택"
+                    checked={allPicked}
+                    ref={(el) => {
+                      if (el) el.indeterminate = visiblePicked.length > 0 && !allPicked;
+                    }}
+                    onChange={(ev) => toggleAll(ev.target.checked)}
+                    className="size-4 align-middle"
+                  />
+                </th>
                 <th className="px-3 py-2 font-medium">회원번호</th>
                 <th className="px-3 py-2 font-medium">이름</th>
                 <th className="px-3 py-2 font-medium">생년월일</th>
                 <th className="px-3 py-2 font-medium">전화번호</th>
                 <th className="px-3 py-2 font-medium">주소</th>
+                <th className="px-3 py-2 font-medium">소득 구분</th>
                 <th className="px-3 py-2 font-medium">알림톡</th>
                 <th className="px-3 py-2 font-medium">등록일</th>
                 <th className="w-20" />
@@ -376,8 +449,17 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
               {rows.map((e) => (
                 <tr
                   key={e.memberId}
-                  className={`border-t ${e.memberId === editingId ? "bg-amber-50" : fresh.includes(e.memberId) ? "bg-indigo-50" : ""}`}
+                  className={`border-t ${e.memberId === editingId ? "bg-amber-50" : picked.has(e.memberId) ? "bg-neutral-100" : fresh.includes(e.memberId) ? "bg-indigo-50" : ""}`}
                 >
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      aria-label={`${e.name} 선택`}
+                      checked={picked.has(e.memberId)}
+                      onChange={(ev) => toggle(e.memberId, ev.target.checked)}
+                      className="size-4 align-middle"
+                    />
+                  </td>
                   <td className="px-3 py-2 font-mono tabular-nums">{e.memberId}</td>
                   <td className="px-3 py-2 font-medium">
                     {e.name}
@@ -387,6 +469,13 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
                   <td className="px-3 py-2 tabular-nums">{e.phone ?? <span className="text-muted-foreground">-</span>}</td>
                   <td className="max-w-56 truncate px-3 py-2" title={e.address}>
                     {e.address ?? <span className="text-muted-foreground">-</span>}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {e.incomeType === "사업소득" ? (
+                      <span className="rounded bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-violet-200">사업소득 3.3%</span>
+                    ) : (
+                      <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-700">근로소득</span>
+                    )}
                   </td>
                   <td className="px-3 py-2">{e.kakaoConsent ? <span className="text-emerald-700">동의</span> : <span className="text-muted-foreground">미동의</span>}</td>
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">{e.registeredAt}</td>
@@ -402,7 +491,7 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
                     조건에 맞는 직원이 없어요.
                   </td>
                 </tr>
@@ -423,12 +512,14 @@ function EditDialog({ e, roster, onClose }: { e: JaberEmployee; roster: JaberEmp
   const [phone, setPhone] = useState(e.phone ?? "");
   const [address, setAddress] = useState(e.address ?? "");
   const [consent, setConsent] = useState(e.kakaoConsent);
+  const [incomeType, setIncomeType] = useState<IncomeType>(e.incomeType ?? "근로소득");
   const draft: Draft | null = name.trim()
     ? {
         companyCode: e.companyCode,
         companyName: e.companyName,
         name: name.trim(),
         birthDate: birthDate || undefined,
+        incomeType,
         phone: phone.trim() || undefined,
         address: address.trim() || undefined,
         email: e.email,
@@ -473,6 +564,10 @@ function EditDialog({ e, roster, onClose }: { e: JaberEmployee; roster: JaberEmp
               전화번호
               <input inputMode="tel" value={phone} onChange={(ev) => setPhone(ev.target.value)} className={box} />
             </label>
+            <label className={field}>
+              소득 구분
+              <IncomeSelect value={incomeType} onChange={setIncomeType} className={box} />
+            </label>
             <label className={`${field} sm:col-span-2`}>
               주소
               <input value={address} onChange={(ev) => setAddress(ev.target.value)} className={box} />
@@ -496,5 +591,18 @@ function EditDialog({ e, roster, onClose }: { e: JaberEmployee; roster: JaberEmp
         </div>
       </div>
     </div>
+  );
+}
+
+/** 소득 구분 고르기 (근로소득·사업소득) */
+function IncomeSelect({ value, onChange, className = "" }: { value: IncomeType; onChange: (v: IncomeType) => void; className?: string }) {
+  return (
+    <select value={value} onChange={(ev) => onChange(ev.target.value as IncomeType)} className={className}>
+      {INCOME_TYPES.map((t) => (
+        <option key={t} value={t}>
+          {t === "근로소득" ? "근로소득 (4대보험·근로소득세)" : "사업소득 (3.3% 프리랜서·강사)"}
+        </option>
+      ))}
+    </select>
   );
 }

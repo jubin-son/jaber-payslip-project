@@ -3,9 +3,45 @@
 // 휴대폰·컴퓨터 모두에서 보이고, 인쇄·PDF로 저장할 때는 테두리와 그림자를 없앤다.
 import type { EmployeePay, PayItem, PayrollBatch } from "@/types/payroll";
 import { dateText, identityParts, periodText, won } from "./use-reviewed";
-import { incomeTypeOf, settingsStore } from "@/lib/hr-store";
+import { headcountOf, incomeTypeOfEmployee, rosterStore, settingsStore, type HrSettings } from "@/lib/hr-store";
+import type { JaberEmployee } from "@/lib/jaber-db";
+import { calcMethodOf, overtimeRuleText, resolveHeadcount, type StatementContext } from "@/lib/wage-statement";
 
-function Rows({ title, items, total, totalLabel }: { title: string; items: PayItem[]; total: number; totalLabel: string }) {
+/**
+ * 명세서 기재 기준: 상시근로자 수(기본 관리)는 사업장 단위, 소득 구분(임직원 관리)은 직원 단위로 정한다.
+ * forEmployee(e)로 직원 한 명의 기준을 얻는다.
+ */
+export type BatchStatementContext = {
+  headcount: StatementContext["headcount"];
+  estimated: boolean;
+  count: number;
+  forEmployee: (e: EmployeePay) => StatementContext;
+};
+
+export function useStatementContext(batch: PayrollBatch): BatchStatementContext {
+  return statementContextOf(settingsStore.use(), rosterStore.use(), batch);
+}
+
+export function statementContextOf(settings: HrSettings | null, roster: JaberEmployee[] | null, batch: PayrollBatch): BatchStatementContext {
+  const isBiz = (e: EmployeePay) => incomeTypeOfEmployee(roster, e) === "사업소득";
+  const hc = resolveHeadcount(headcountOf(settings, batch.companyCode), batch, isBiz);
+  return { headcount: hc.value, estimated: hc.estimated, count: hc.count, forEmployee: (e) => ({ headcount: hc.value, businessIncome: isBiz(e) }) };
+}
+
+function Rows({
+  title,
+  items,
+  total,
+  totalLabel,
+  methodOf,
+}: {
+  title: string;
+  items: PayItem[];
+  total: number;
+  totalLabel: string;
+  /** 항목별 계산방법 (출근일수·시간에 따라 달라지는 항목만) */
+  methodOf?: (it: PayItem) => string | undefined;
+}) {
   return (
     <section className="flex min-w-0 flex-col gap-2">
       <h3 className="text-sm font-semibold">{title}</h3>
@@ -13,9 +49,12 @@ function Rows({ title, items, total, totalLabel }: { title: string; items: PayIt
         {items.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">항목이 없어요</li>}
         {items.map((it, i) => (
           <li key={`${it.label}-${i}`} className="flex flex-col gap-0.5 px-3 py-2 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-            <span className="flex flex-wrap items-center gap-1.5">
-              {it.label}
-              {it.taxFree && <span className="rounded bg-muted px-1.5 text-[11px] leading-4 text-muted-foreground">비과세</span>}
+            <span className="flex flex-col">
+              <span className="flex flex-wrap items-center gap-1.5">
+                {it.label}
+                {it.taxFree && <span className="rounded bg-muted px-1.5 text-[11px] leading-4 text-muted-foreground">비과세</span>}
+              </span>
+              {methodOf?.(it) && <span className="text-xs text-muted-foreground">{methodOf(it)}</span>}
             </span>
             <span className="tabular-nums sm:text-right">{won(it.amount)}</span>
           </li>
@@ -39,9 +78,10 @@ export function PayslipCard({ batch, employee: e }: { batch: PayrollBatch; emplo
   ].filter(Boolean);
 
   const idInfo = identityParts(e); // 같은 이름 구분용 (사번·생년월일·입사일)
-  // 기본 관리에서 사업소득으로 정한 사업장은 제목을 바꾼다
-  const settings = settingsStore.use();
-  const docTitle = incomeTypeOf(settings, batch.companyCode) === "사업소득" ? "사업소득 지급명세서" : "급여명세서";
+  // 임직원 관리에서 사업소득으로 정한 직원은 제목을 바꾼다
+  const ctx = useStatementContext(batch).forEmployee(e);
+  const docTitle = ctx.businessIncome ? "사업소득 지급명세서" : "급여명세서";
+  const rule = overtimeRuleText(e, ctx);
 
   return (
     <article className="mx-auto flex w-full max-w-2xl flex-col gap-5 break-inside-avoid rounded-2xl border bg-background p-5 shadow-sm print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none">
@@ -69,10 +109,11 @@ export function PayslipCard({ batch, employee: e }: { batch: PayrollBatch; emplo
 
       {/* 지급은 왼쪽, 공제는 오른쪽 */}
       <div className="grid grid-cols-2 items-start gap-3 sm:gap-5">
-        <Rows title="지급 내역" items={e.earnings} total={e.totalEarnings} totalLabel="지급 합계" />
+        <Rows title="지급 내역" items={e.earnings} total={e.totalEarnings} totalLabel="지급 합계" methodOf={(it) => calcMethodOf(it, e, ctx)} />
         <Rows title="공제 내역" items={e.deductions} total={e.totalDeductions} totalLabel="공제 합계" />
       </div>
 
+      {rule && <p className="text-xs text-muted-foreground">{rule}</p>}
       <p className="text-xs text-muted-foreground">문의는 급여 담당자에게 해 주세요.</p>
     </article>
   );

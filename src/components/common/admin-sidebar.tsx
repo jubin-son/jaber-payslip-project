@@ -5,62 +5,93 @@ import { usePathname } from "next/navigation";
 import { Store } from "lucide-react";
 import { jaberCompanies } from "@/lib/jaber-db";
 import { ownerStore, useOwner } from "@/lib/hr-store";
+import { STEPS, stepOf } from "./site-header";
 
-// 사업주 화면 왼쪽 메뉴. 맨 위에 내 사업장, 아래로 인건비 관리(기본 관리·임직원 관리)와 급여명세서·발송 관리.
-type Item = { href: string; label: string; /** 이 경로들에 있으면 이 메뉴를 켠다 */ match: string[] };
+// 사업주 화면 왼쪽 메뉴. 맨 위에 내 사업장, 아래로 상위 메뉴 4개(기본 관리·임직원 관리·급여명세서·발송 관리).
+// 급여명세서 아래에는 만드는 순서대로 업로드 → 확인·수정 → 명세서 → 발송 단계를 둔다.
+type Item = { href: string; label: string; on: (pathname: string) => boolean; children?: Item[] };
 
-const GROUPS: { title?: string; items: Item[] }[] = [
+const under = (...prefixes: string[]) => (p: string) => prefixes.some((x) => p === x || p.startsWith(`${x}/`));
+
+const MENU: Item[] = [
+  { href: "/settings", label: "기본 관리", on: under("/settings") },
+  { href: "/employees", label: "임직원 관리", on: under("/employees") },
   {
-    title: "인건비 관리",
-    items: [
-      { href: "/settings", label: "기본 관리", match: ["/settings"] },
-      { href: "/employees", label: "임직원 관리", match: ["/employees"] },
-    ],
+    href: "/upload",
+    label: "급여명세서",
+    on: (p) => stepOf(p) !== undefined,
+    children: STEPS.map((s) => ({ href: s.href, label: s.label, on: (p: string) => stepOf(p)?.href === s.href })),
   },
-  {
-    items: [
-      { href: "/upload", label: "급여명세서", match: ["/upload", "/organize", "/review", "/payslips"] },
-      { href: "/send", label: "발송 관리", match: ["/send"] },
-    ],
-  },
+  { href: "/send/history", label: "발송 관리", on: under("/send/history") },
 ];
 
 export function AdminSidebar() {
   const pathname = usePathname();
-  const isOn = (it: Item) => it.match.some((m) => pathname.startsWith(m));
   return (
     <nav aria-label="관리 메뉴" className="print:hidden">
       {/* 넓은 화면: 왼쪽 세로 메뉴 */}
       <div className="sticky top-16 hidden w-52 shrink-0 flex-col gap-5 border-r border-neutral-100 bg-white px-4 py-8 lg:flex lg:h-[calc(100vh-4rem)]">
         <MyBusiness />
-        {GROUPS.map((g, gi) => (
-          <div key={gi} className={`flex flex-col gap-1 ${gi > 0 ? "border-t border-neutral-200 pt-5" : ""}`}>
-            {g.title && <p className="px-3 pb-1 text-sm font-bold text-neutral-900">{g.title}</p>}
-            {g.items.map((it) => (
-              <Link
-                key={it.href}
-                href={it.href}
-                aria-current={isOn(it) ? "page" : undefined}
-                className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${g.title ? "pl-5" : ""} ${
-                  isOn(it) ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
-                }`}
-              >
-                {it.label}
-              </Link>
-            ))}
-          </div>
-        ))}
+        <ul className="flex flex-col gap-1">
+          {MENU.map((it) => {
+            const on = it.on(pathname);
+            return (
+              <li key={it.href} className="flex flex-col gap-1">
+                <Link
+                  href={it.href}
+                  aria-current={on && !it.children ? "page" : undefined}
+                  className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                    on
+                      ? it.children
+                        ? "bg-neutral-100 text-neutral-900"
+                        : "bg-neutral-900 text-white"
+                      : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                  }`}
+                >
+                  {it.label}
+                </Link>
+                {it.children && (
+                  <ol className="ml-3 flex flex-col gap-0.5 border-l border-neutral-200 pl-2">
+                    {it.children.map((c, i) => {
+                      const cOn = c.on(pathname);
+                      return (
+                        <li key={c.href}>
+                          <Link
+                            href={c.href}
+                            aria-current={cOn ? "page" : undefined}
+                            className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] font-medium transition-colors ${
+                              cOn ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                            }`}
+                          >
+                            <span
+                              className={`flex size-4 items-center justify-center rounded-full text-[10px] ${
+                                cOn ? "bg-white text-neutral-900" : "bg-neutral-100 text-neutral-500"
+                              }`}
+                            >
+                              {i + 1}
+                            </span>
+                            {c.label}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </li>
+            );
+          })}
+        </ul>
         <OwnerSwitch />
       </div>
-      {/* 좁은 화면: 위쪽 가로 메뉴 */}
+      {/* 좁은 화면: 위쪽 가로 메뉴 (급여명세서 단계는 상단 바의 단계 이동에 나온다) */}
       <div className="flex gap-1 overflow-x-auto border-b border-neutral-100 bg-white px-4 py-2 lg:hidden">
-        {GROUPS.flatMap((g) => g.items).map((it) => (
+        {MENU.map((it) => (
           <Link
             key={it.href}
             href={it.href}
-            aria-current={isOn(it) ? "page" : undefined}
+            aria-current={it.on(pathname) ? "page" : undefined}
             className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold ${
-              isOn(it) ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100"
+              it.on(pathname) ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100"
             }`}
           >
             {it.label}
