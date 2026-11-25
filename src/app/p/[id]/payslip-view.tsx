@@ -55,8 +55,8 @@ export function PayslipView({ id }: { id: string }) {
   if (reviewed.status === "ready") {
     for (const batch of reviewed.batches) {
       const employee = batch.employees.find((e) => e.id === id);
-      // 3단계에서 확인 완료한 직원의 명세서만 열린다
-      if (employee && reviewed.confirmed.has(employee.id)) {
+      // 오류가 없는 직원의 명세서만 열린다
+      if (employee && reviewed.issuable.has(employee.id)) {
         return (
           <IdentityGate
             employee={employee}

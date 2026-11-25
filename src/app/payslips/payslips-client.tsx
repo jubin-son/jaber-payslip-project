@@ -86,24 +86,13 @@ export function PayslipsClient() {
       />
     );
   }
-  if (reviewed.status === "not-reviewed") {
-    return (
-      <Guide
-        title="먼저 확인·수정 화면에서 확인해 주세요"
-        text="올린 파일을 담당자 확인·수정 화면에서 확인하면 명세서가 만들어져요."
-        href="/review"
-        button="담당자 확인·수정으로 가기"
-      />
-    );
-  }
-
-  const { batches, confirmed, errorCount } = reviewed;
+  const { batches, issuable, errorCount } = reviewed;
   const batch = batches[batchIdx] ?? batches[0];
   if (!batch || batch.employees.length === 0) return <p className="text-muted-foreground">명세서를 만들 직원이 없어요.</p>;
 
-  // 명세서는 3단계에서 "확인 완료"한 직원만 만든다
-  const ready = batch.employees.filter((e) => confirmed.has(e.id));
-  const unconfirmed = batch.employees.length - ready.length;
+  // 명세서는 오류가 없는 직원이면 따로 확인하지 않아도 만들어진다. 확인·수정 화면에서 고친 값은 그대로 반영된다
+  const ready = batch.employees.filter((e) => issuable.has(e.id));
+  const blocked = batch.employees.length - ready.length;
   const total = ready.reduce((n, e) => n + e.netPay, 0);
 
   const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
@@ -134,16 +123,16 @@ export function PayslipsClient() {
 
       {ready.length === 0 && (
         <Guide
-          title="아직 확인 완료한 직원이 없어요"
-          text={`${batch.companyName}의 직원 ${batch.employees.length}명을 확인·수정 화면에서 확인 완료하면 명세서가 만들어져요.`}
+          title="명세서를 만들 수 있는 직원이 없어요"
+          text={`${batch.companyName}의 직원 ${batch.employees.length}명 모두 오류가 남아 있어요. 확인·수정 화면에서 오류를 고치면 명세서가 만들어져요.`}
           href="/review"
           button="담당자 확인·수정으로 가기"
         />
       )}
-      {ready.length > 0 && unconfirmed > 0 && (
+      {ready.length > 0 && blocked > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           {errorCount > 0 ? `확인·수정 화면에 아직 오류가 ${errorCount}개 남아 있어요. ` : ""}
-          확인 완료하지 않은 직원 {unconfirmed}명은 명세서가 만들어지지 않았어요. 
+          오류가 남은 직원 {blocked}명은 명세서가 만들어지지 않았어요. 
           <Link href="/review" className="font-medium underline underline-offset-2">
             확인·수정 화면으로 돌아가기
           </Link>
@@ -159,7 +148,7 @@ export function PayslipsClient() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <span>
-            명세서 <b>{ready.length}</b>장 <span className="text-muted-foreground">(직원 {batch.employees.length}명 중 확인 완료)</span>
+            명세서 <b>{ready.length}</b>장 <span className="text-muted-foreground">(직원 {batch.employees.length}명 중)</span>
           </span>
           <span>
             실지급액 합계 <b>{won(total)}</b>
@@ -172,7 +161,7 @@ export function PayslipsClient() {
         <ul className="flex flex-col gap-2">
           {batch.employees.map((e) => {
             const active = e.id === selected.id;
-            const ok = confirmed.has(e.id);
+            const ok = issuable.has(e.id);
             const hasError = e.issues.some((i) => i.level === "error");
             const noteCount = statementNotes(e, ctx.forEmployee(e)).filter((n) => n.level === "warning").length;
             return (
@@ -180,7 +169,7 @@ export function PayslipsClient() {
                 <button type="button" disabled={!ok} onClick={() => setSelectedId(e.id)} className="flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60">
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="truncate font-medium">{e.name}</span>
-                    {hasError ? <Badge variant="destructive">오류</Badge> : ok ? <Badge variant="secondary">확인 완료</Badge> : <Badge variant="outline">확인 전</Badge>}
+                    {hasError && <Badge variant="destructive">오류</Badge>}
                     {noteCount > 0 && <Badge variant="outline" className="border-amber-300 text-amber-800">기재 확인 {noteCount}</Badge>}
                   </span>
                   <span className="shrink-0 tabular-nums">{won(e.netPay)}</span>
@@ -198,7 +187,7 @@ export function PayslipsClient() {
                     </Button>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">확인·수정 화면에서 확인 완료하면 명세서가 만들어져요.</p>
+                  <p className="text-xs text-muted-foreground">오류를 고치면 명세서가 만들어져요.</p>
                 )}
               </li>
             );

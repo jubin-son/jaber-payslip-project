@@ -1,5 +1,5 @@
 "use client";
-// 5단계: 발송 화면 (시연 수준). 3단계에서 확인 완료한 직원만 대상이 된다.
+// 5단계: 발송 화면 (시연 수준). 오류가 없는 직원이 대상이 된다.
 // 실제로 알림톡·메일을 보내지는 않고, '보낸 것으로 기록'만 남긴다.
 import Link from "next/link";
 import { useState } from "react";
@@ -46,30 +46,19 @@ export function SendClient() {
     return (
       <Guide
         title="아직 발송할 파일이 없어요"
-        text="급여대장을 올려 변환하고, 확인·수정 화면에서 확인한 뒤 명세서를 만들면 여기서 발송할 수 있어요."
+        text="급여대장을 올려 변환하면 명세서가 만들어지고, 여기서 발송할 수 있어요."
         href="/upload"
         button="파일 올리러 가기"
       />
     );
   }
-  if (reviewed.status === "not-reviewed") {
-    return (
-      <Guide
-        title="먼저 확인·수정 화면에서 확인해 주세요"
-        text="올린 파일을 담당자 확인·수정 화면에서 확인하면 발송할 수 있어요."
-        href="/review"
-        button="담당자 확인·수정으로 가기"
-      />
-    );
-  }
-
-  const { batches, confirmed, signature } = reviewed;
+  const { batches, issuable, signature } = reviewed;
   const batch: PayrollBatch | undefined = batches[batchIdx] ?? batches[0];
   if (!batch || batch.employees.length === 0) return <p className="text-muted-foreground">발송할 직원이 없어요.</p>;
 
-  // 발송은 3단계에서 "확인 완료"한 직원만 대상이다
-  const ready = batch.employees.filter((e) => confirmed.has(e.id));
-  const unconfirmed = batch.employees.length - ready.length;
+  // 발송은 오류가 없는 직원이 대상이다 (따로 확인을 누르지 않아도 된다)
+  const ready = batch.employees.filter((e) => issuable.has(e.id));
+  const blocked = batch.employees.length - ready.length;
   const records = sendState && sendState.signature === signature ? sendState.records : {};
   const opens = sendState && sendState.signature === signature ? (sendState.opens ?? {}) : {};
   const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
@@ -145,7 +134,7 @@ export function SendClient() {
           <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="귀속월" value={periodText(batch.payPeriod)} />
             <Stat label="지급일" value={dateText(batch.payDate)} warn={!batch.payDate} />
-            <Stat label="발송 대상" value={`${ready.length}명`} sub={`직원 ${batch.employees.length}명 중 확인 완료`} />
+            <Stat label="발송 대상" value={`${ready.length}명`} sub={`직원 ${batch.employees.length}명 중`} />
             <Stat label="알림톡 가능" value={`${kakaoOk}명`} />
             <Stat label="메일 가능" value={`${mailOk}명`} />
             <Stat
@@ -184,9 +173,9 @@ export function SendClient() {
               </Link>
             </Notice>
           )}
-          {unconfirmed > 0 && (
+          {blocked > 0 && (
             <Notice>
-              확인·수정 화면에서 확인 완료하지 않은 직원 {unconfirmed}명은 발송 대상에서 빠져요.{" "}
+              오류가 남은 직원 {blocked}명은 발송 대상에서 빠져요.{" "}
               <Link href="/review" className="font-medium underline underline-offset-2">
                 확인·수정 화면으로 가기
               </Link>
@@ -203,8 +192,8 @@ export function SendClient() {
 
       {ready.length === 0 ? (
         <Guide
-          title="아직 확인 완료한 직원이 없어요"
-          text={`${batch.companyName}의 직원 ${batch.employees.length}명을 확인·수정 화면에서 확인 완료하면 발송할 수 있어요.`}
+          title="발송할 수 있는 직원이 없어요"
+          text={`${batch.companyName}의 직원 ${batch.employees.length}명 모두 오류가 남아 있어요. 확인·수정 화면에서 오류를 고치면 발송할 수 있어요.`}
           href="/review"
           button="담당자 확인·수정으로 가기"
         />
