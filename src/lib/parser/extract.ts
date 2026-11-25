@@ -588,7 +588,7 @@ export function extractFile(file: RawFile): ParseResult {
   return { batches, tables, skipped };
 }
 
-export function extractFiles(files: RawFile[], roster?: JaberEmployee[], own?: JaberCompany): ParseResult {
+export function extractFiles(files: RawFile[], roster?: JaberEmployee[], own?: JaberCompany | JaberCompany[]): ParseResult {
   const result: ParseResult = { batches: [], tables: [], skipped: [] };
   files.forEach((f, fi) => {
     const r = extractFile(f);

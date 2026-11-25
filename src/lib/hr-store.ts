@@ -1,10 +1,11 @@
 "use client";
 // 인건비 관리(기본 관리·임직원 관리)에서 정한 값을 브라우저(localStorage)에 둔다.
 // 탭을 닫아도 남는다. 나중에 저장소(Supabase)를 붙이면 이 파일만 바꾸면 된다.
-// 이 화면을 쓰는 사람은 자버에 가입한 사업주 본인(사업장 1곳)이다.
-//   - 로그인한 사업주: 아직 로그인이 없어서 테스트용으로 사업장 16곳 중 하나를 고른다 (ownerStore)
-//   - 기본 관리: 내 사업장 정보와 급여명세서 발행 설정(상시근로자 수, 엑셀 항목 → 표준 항목 연결)
-//   - 임직원 관리: 직원 명부(소득 구분 포함). 처음에는 자버 직원연락처(테스트 데이터)로 채워 둔다. 화면에는 내 사업장 직원만 보인다
+// 이 화면을 쓰는 사람은 자버에 가입한 사업주 본인이다. 사업장을 여러 곳 가질 수 있다.
+//   - 로그인한 사업주: 아직 로그인이 없어서 테스트용으로 사업장 16곳 중 하나를 고른다 (ownerStore = 가입한 사업장코드)
+//   - 내 사업장 목록: 가입한 사업장 + 기본 관리에서 추가한 사업장 (accountStore)
+//   - 기본 관리: 사업장마다 정보·상시근로자 수, 내 사업장 전체에 쓰는 엑셀 항목 → 표준 항목 연결(가입한 사업장 칸에 둔다)
+//   - 임직원 관리: 직원 명부(소득 구분 포함). 처음에는 자버 직원연락처(테스트 데이터)로 채워 둔다. 화면에서 사업장을 골라 그 사업장 직원만 본다
 import { useSyncExternalStore } from "react";
 import type { EmployeePay, PayCategory } from "@/types/payroll";
 import { jaberCompanies, jaberEmployees, type IncomeType, type JaberCompany, type JaberEmployee } from "@/lib/jaber-db";
@@ -88,8 +89,66 @@ function createLocalStore<T>(key: string, initial: () => T, onWrite?: (next: T) 
 
 export const settingsStore = createLocalStore<HrSettings>("jaber.hr.settings.v2", () => structuredClone(DEFAULT_SETTINGS));
 
-/** 로그인한 사업주의 사업장코드 (로그인을 붙이기 전까지 테스트용으로 고른다) */
+/** 로그인한 사업주가 자버에 가입한 사업장코드 (로그인을 붙이기 전까지 테스트용으로 고른다) */
 export const ownerStore = createLocalStore<string>("jaber.hr.owner.v1", () => jaberCompanies[0]?.code ?? "");
+
+/**
+ * 사업주 한 명의 사업장 목록. 로그인 사업장코드 → 계정.
+ * workplaces: 가입한 사업장을 뺀, 기본 관리에서 추가한 사업장코드 (가입한 사업장은 늘 맨 앞에 있다)
+ */
+export type OwnerAccount = { workplaces: string[] };
+export const accountStore = createLocalStore<Record<string, OwnerAccount>>("jaber.hr.accounts.v1", () => ({}));
+
+/** 자버에 없는 사업장을 사업주가 새로 등록한 것. 사업장코드는 이 화면에서 만든다(JB-9001부터) */
+export const newCompanyStore = createLocalStore<JaberCompany[]>("jaber.hr.newCompanies.v1", () => []);
+
+/** 사업장코드로 사업장 원본(사업주가 고치기 전) 찾기: 자버 가입 사업장 → 새로 등록한 사업장 */
+export function baseCompany(code?: string): JaberCompany | undefined {
+  if (!code) return undefined;
+  return jaberCompanies.find((c) => c.code === code) ?? newCompanyStore.get().find((c) => c.code === code);
+}
+
+/** 자버 가입 사업장인지 (아니면 기본 관리에서 새로 등록한 사업장) */
+export function isJaberCompany(code: string): boolean {
+  return jaberCompanies.some((c) => c.code === code);
+}
+
+/** 로그인한 사업주의 사업장코드 목록 (가입한 사업장이 맨 앞) */
+function workplaceCodes(login: string, accounts: Record<string, OwnerAccount> | null): string[] {
+  const added = accounts?.[login]?.workplaces ?? [];
+  return [login, ...added.filter((c) => c !== login && baseCompany(c))];
+}
+
+/** 내 사업장에 추가한다. 자버 가입 사업장이면 code만, 새 사업장이면 정보를 받아 코드를 만든다 */
+export function addWorkplace(input: { code: string } | { company: Omit<JaberCompany, "code" | "joinedAt"> }): string {
+  let code: string;
+  if ("code" in input) {
+    code = input.code;
+  } else {
+    const list = newCompanyStore.get();
+    const max = list.reduce((n, c) => Math.max(n, Number(c.code.replace(/\D/g, "")) || 0), 9000);
+    code = `JB-${max + 1}`;
+    const today = new Date().toISOString().slice(0, 10);
+    newCompanyStore.set((l) => [...l, { ...input.company, code, joinedAt: today }]);
+  }
+  const login = ownerStore.get();
+  accountStore.set((a) => {
+    const prev = a[login]?.workplaces ?? [];
+    return { ...a, [login]: { workplaces: prev.includes(code) || code === login ? prev : [...prev, code] } };
+  });
+  return code;
+}
+
+/** 내 사업장에서 빼기. 가입한 사업장은 뺄 수 없다. 그 사업장의 설정·직원 명부는 지우지 않는다(다시 추가하면 그대로 돌아온다) */
+export function removeWorkplace(code: string) {
+  const login = ownerStore.get();
+  if (code === login) return;
+  accountStore.set((a) => {
+    const prev = a[login];
+    if (!prev) return a;
+    return { ...a, [login]: { workplaces: prev.workplaces.filter((c) => c !== code) } };
+  });
+}
 
 /** 임직원 명부. 처음 열면 자버 직원연락처 69명(테스트 데이터)으로 시작한다 */
 // 명부를 고치면 이미 올려 둔 급여대장도 새 명부로 다시 매칭한다 (급여대장을 먼저 올리고 직원을 나중에 등록해도 명세서에 반영되게)
@@ -100,7 +159,7 @@ export const rosterStore = createLocalStore<JaberEmployee[]>("jaber.hr.roster.v1
  * 매칭 결과(match)와 매칭 안내(issue)만 바뀌고, 금액·고친 내용·수정 기록은 그대로 둔다.
  */
 function rematchSavedPayroll(roster: JaberEmployee[]) {
-  const own = getOwner()?.company;
+  const own = getOwner()?.workplaces;
   const parsed = getParseResult();
   if (parsed) {
     const next = structuredClone(parsed);
@@ -121,7 +180,7 @@ export function businessOf(settings: HrSettings | null, companyCode?: string): B
 
 /** 자버 가입 정보에 사업주가 고친 내용을 덮은 사업장 정보 */
 export function companyOf(settings: HrSettings | null, companyCode?: string): JaberCompany | undefined {
-  const base = jaberCompanies.find((c) => c.code === companyCode);
+  const base = baseCompany(companyCode);
   return base && { ...base, ...businessOf(settings, companyCode).profile };
 }
 
@@ -135,27 +194,47 @@ export function incomeTypeOfEmployee(roster: JaberEmployee[] | null, e: Pick<Emp
   return (id && roster?.find((r) => r.memberId === id)?.incomeType) || "근로소득";
 }
 
-/** 내 사업장(지금 로그인한 사업주)의 기본 관리 값을 고친다 */
-export function updateMyBusiness(fn: (b: BusinessSettings) => BusinessSettings) {
-  const code = ownerStore.get();
+/** 사업장 한 곳의 기본 관리 값을 고친다. 엑셀 항목 연결은 가입한 사업장(owner.login) 칸에 둔다 */
+export function updateBusiness(code: string, fn: (b: BusinessSettings) => BusinessSettings) {
   settingsStore.set((s) => ({ ...s, byCompany: { ...s.byCompany, [code]: fn(businessOf(s, code)) } }));
 }
 
-/** 지금 로그인한 사업주와 그 사업장 설정 (브라우저 값을 읽기 전에는 null) */
-export function useOwner(): { code: string; company: JaberCompany; business: BusinessSettings } | null {
-  const code = ownerStore.use();
-  const settings = settingsStore.use();
-  if (code === null || settings === null) return null;
-  const company = companyOf(settings, code) ?? companyOf(settings, jaberCompanies[0]?.code);
+export type Owner = {
+  /** 로그인한 사업주가 자버에 가입한 사업장코드 */
+  login: string;
+  /** 가입한 사업장 (사업주가 고친 정보까지 반영) */
+  company: JaberCompany;
+  /** 가입한 사업장의 기본 관리 값. itemLinks는 내 사업장 전체에 쓴다 */
+  business: BusinessSettings;
+  /** 내 사업장 전체 (가입한 사업장이 맨 앞) */
+  workplaces: JaberCompany[];
+};
+
+function ownerOf(login: string, accounts: Record<string, OwnerAccount> | null, settings: HrSettings | null): Owner | null {
+  const loginCode = baseCompany(login) ? login : jaberCompanies[0]?.code;
+  if (!loginCode) return null;
+  const company = companyOf(settings, loginCode);
   if (!company) return null;
-  return { code: company.code, company, business: businessOf(settings, company.code) };
+  const workplaces = workplaceCodes(loginCode, accounts)
+    .map((c) => companyOf(settings, c))
+    .filter((c): c is JaberCompany => !!c);
+  return { login: loginCode, company, business: businessOf(settings, loginCode), workplaces };
+}
+
+/** 지금 로그인한 사업주와 내 사업장 목록 (브라우저 값을 읽기 전에는 null) */
+export function useOwner(): Owner | null {
+  const login = ownerStore.use();
+  const accounts = accountStore.use();
+  const settings = settingsStore.use();
+  // 새로 등록한 사업장이 바뀌면 다시 그린다
+  const added = newCompanyStore.use();
+  if (login === null || accounts === null || settings === null || added === null) return null;
+  return ownerOf(login, accounts, settings);
 }
 
 /** 화면 밖(업로드 처리 등)에서 내 사업장 정보 읽기 */
-export function getOwner(): { company: JaberCompany; business: BusinessSettings } | null {
-  const settings = settingsStore.get();
-  const company = companyOf(settings, ownerStore.get());
-  return company ? { company, business: businessOf(settings, company.code) } : null;
+export function getOwner(): Owner | null {
+  return ownerOf(ownerStore.get(), accountStore.get(), settingsStore.get());
 }
 
 /** 새 회원번호: 지금 명부에서 가장 큰 번호 + 1 (6자리) */

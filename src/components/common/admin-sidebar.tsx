@@ -102,15 +102,19 @@ export function AdminSidebar() {
   );
 }
 
-/** 로그인한 사업주의 사업장 이름 */
+/** 로그인한 사업주의 사업장 (여러 곳이면 가입한 사업장 외 몇 곳인지) */
 function MyBusiness() {
   const owner = useOwner();
+  const more = owner ? owner.workplaces.length - 1 : 0;
   return (
     <Link href="/settings" className="flex items-center gap-2 rounded-xl bg-neutral-50 px-3 py-2.5 hover:bg-neutral-100">
       <Store className="size-4 shrink-0 text-neutral-500" />
       <span className="flex min-w-0 flex-col">
-        <span className="text-[11px] text-muted-foreground">내 사업장</span>
-        <span className="truncate text-sm font-bold">{owner?.company.name ?? "…"}</span>
+        <span className="text-[11px] text-muted-foreground">내 사업장{more > 0 ? ` ${more + 1}곳` : ""}</span>
+        <span className="truncate text-sm font-bold">
+          {owner?.company.name ?? "…"}
+          {more > 0 && <span className="font-medium text-muted-foreground"> 외 {more}곳</span>}
+        </span>
       </span>
     </Link>
   );
@@ -124,7 +128,7 @@ function OwnerSwitch() {
     <label className="mt-auto flex flex-col gap-1 rounded-xl border border-dashed border-neutral-300 p-2 text-[11px] text-muted-foreground">
       테스트: 로그인한 사업주
       <select
-        value={owner.code}
+        value={owner.login}
         onChange={(e) => ownerStore.set(() => e.target.value)}
         className="rounded-md border bg-white px-1.5 py-1 text-xs text-foreground"
       >
