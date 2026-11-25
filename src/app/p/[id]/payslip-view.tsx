@@ -61,6 +61,7 @@ export function PayslipView({ id }: { id: string }) {
           <IdentityGate
             employee={employee}
             registryBirth={roster?.find((r) => r.memberId === employee.match?.memberId)?.birthDate}
+            registryPhone={roster?.find((r) => r.memberId === employee.match?.memberId)?.phone}
           >
             <PayslipWithActions batch={batch} employee={employee} signature={reviewed.signature} />
           </IdentityGate>
