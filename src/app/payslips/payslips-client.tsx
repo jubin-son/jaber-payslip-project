@@ -78,7 +78,6 @@ export function PayslipsClient() {
   }, [readyBatches, readyIssuable]);
   const [batchIdx, setBatchIdx] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const settings = settingsStore.use();
   const roster = rosterStore.use();
 
@@ -104,16 +103,6 @@ export function PayslipsClient() {
 
   const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
   const ctx = statementContextOf(settings, roster, batch);
-
-  async function copyLink(id: string) {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/p/${id}`);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
-    } catch {
-      // 복사 권한이 없으면 '명세서 열기'로 주소창에서 복사하면 된다
-    }
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -189,8 +178,11 @@ export function PayslipsClient() {
                         명세서 열기
                       </Link>
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => copyLink(e.id)}>
-                      {copiedId === e.id ? "복사됨 ✓" : "링크 복사"}
+                    {/* 새 탭에서 명세서를 열고 PDF 저장 창을 바로 띄운다 */}
+                    <Button size="sm" variant="ghost" asChild>
+                      <a href={`/p/${e.id}?preview=1&print=1`} target="_blank" rel="noreferrer">
+                        PDF 저장
+                      </a>
                     </Button>
                   </div>
                 ) : (
