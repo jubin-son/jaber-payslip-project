@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { dateText, periodText, useReviewed } from "@/app/payslips/use-reviewed";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
-import { availability, CHANNEL_LABEL, defaultPick, maskEmail, maskPhone, unsentReason, type Channel, type Pick } from "./channels";
+import { rosterStore } from "@/lib/hr-store";
+import { availability, CHANNEL_LABEL, defaultPick, maskEmail, maskPhone, secretNote, unsentReason, type Channel, type Pick } from "./channels";
 import { clearSent, recordSent, useSendState } from "./send-store";
 
 const CHANNELS: Channel[] = ["kakao", "mail"];
@@ -36,6 +37,7 @@ function Guide({ title, text, href, button }: { title: string; text: string; hre
 export function SendClient() {
   const reviewed = useReviewed();
   const sendState = useSendState();
+  const roster = rosterStore.use();
   const [batchIdx, setBatchIdx] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picks, setPicks] = useState<Record<string, Pick>>({});
@@ -239,6 +241,19 @@ export function SendClient() {
                       );
                     })}
                   </div>
+
+                  {(() => {
+                    const note = secretNote(e, roster);
+                    return note ? (
+                      <p className={`rounded-md px-2 py-1.5 text-xs ${note.blocked ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}>
+                        <b>열람 비밀번호 정보 없음 · </b>
+                        {note.message}{" "}
+                        <Link href="/employees" className="font-semibold underline underline-offset-2">
+                          임직원 관리로 가기
+                        </Link>
+                      </p>
+                    ) : null;
+                  })()}
 
                   {!CHANNELS.some((c) => sentAt(e, c)) && !availability(e, "kakao").ok && !availability(e, "mail").ok && (
                     <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">

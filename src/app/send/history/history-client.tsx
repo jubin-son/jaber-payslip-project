@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { periodText, useReviewed } from "@/app/payslips/use-reviewed";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
-import { CHANNEL_LABEL, maskEmail, maskPhone, unsentReason, type Channel } from "../channels";
+import { rosterStore } from "@/lib/hr-store";
+import { CHANNEL_LABEL, maskEmail, maskPhone, secretNote, unsentReason, type Channel } from "../channels";
 import { recordSent, useSendState } from "../send-store";
 
 const CHANNELS: Channel[] = ["kakao", "mail"];
@@ -54,6 +55,7 @@ export function HistoryClient() {
   const sendState = useSendState();
   const [filter, setFilter] = useState<Filter>("all");
   const [resending, setResending] = useState(false);
+  const roster = rosterStore.use();
 
   if (reviewed.status === "loading") return <p className="text-muted-foreground">불러오는 중…</p>;
   if (reviewed.status !== "ready") {
@@ -164,6 +166,7 @@ export function HistoryClient() {
                     <td className="px-3 py-2 font-medium">
                       {e.name}
                       {!firstSent && <Unsent e={e} />}
+                      <SecretWarn note={secretNote(e, roster)} />
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {e.match?.status === "matched" ? `${maskPhone(e.match.phone)} · ${maskEmail(e.match.email)}` : "연락처 없음"}
@@ -216,6 +219,26 @@ export function HistoryClient() {
           <Link href="/send">명세서 발송하러 가기 →</Link>
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** 열람 비밀번호로 쓸 생년월일·휴대폰 번호가 없을 때의 안내 */
+function SecretWarn({ note }: { note: ReturnType<typeof secretNote> }) {
+  if (!note) return null;
+  return (
+    <div
+      className={`mt-1 flex min-w-[220px] flex-col gap-0.5 rounded-md px-2 py-1.5 text-xs font-normal ${
+        note.blocked ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"
+      }`}
+    >
+      <span className="font-medium">열람 비밀번호 정보 없음</span>
+      <span>
+        {note.message}{" "}
+        <Link href="/employees" className="font-semibold underline underline-offset-2">
+          임직원 관리로 가기
+        </Link>
+      </span>
     </div>
   );
 }

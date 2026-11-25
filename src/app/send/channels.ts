@@ -87,3 +87,29 @@ export function unsentReason(e: EmployeePay): UnsentReason {
       : "알림톡 수신동의를 받거나 임직원 관리에서 메일 주소를 추가해 주세요.";
   return { reasons, guide, fixHref: "/employees" };
 }
+
+export type SecretNote = {
+  /** true면 생년월일·휴대폰 번호가 둘 다 없어 직원이 명세서를 열 수 없다 */
+  blocked: boolean;
+  message: string;
+};
+
+const digitsOf = (s?: string) => (s ?? "").replace(/\D/g, "");
+
+/**
+ * 열람 비밀번호로 쓸 정보(생년월일·휴대폰 번호)가 없을 때의 안내. 둘 다 있으면 null.
+ * 생년월일은 급여대장 값, 없으면 임직원 명부 값을 쓴다. 보내는 것을 막지는 않고 담당자에게 알려 주기만 한다.
+ */
+export function secretNote(e: EmployeePay, roster: { memberId: string; birthDate?: string; phone?: string }[] | null): SecretNote | null {
+  const reg = roster?.find((r) => r.memberId === e.match?.memberId);
+  const hasBirth = digitsOf(e.birthDate).length === 8 || digitsOf(reg?.birthDate).length === 8;
+  const hasPhone = digitsOf(e.match?.phone).length >= 4 || digitsOf(reg?.phone).length >= 4;
+  if (hasBirth) return null;
+  if (!hasPhone) {
+    return {
+      blocked: true,
+      message: "생년월일과 휴대폰 번호가 없어 직원이 명세서를 열 수 없어요. 임직원 관리에서 생년월일을 추가해 주세요.",
+    };
+  }
+  return { blocked: false, message: "생년월일이 등록되어 있지 않아요. 열람 비밀번호로 쓸 수 있게 임직원 관리에서 추가해 주세요." };
+}
