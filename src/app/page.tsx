@@ -70,7 +70,7 @@ const quick = [
 const flow = [
   { no: "01", when: "파일을 받았을 때", title: "올리고 변환하기", desc: "엑셀, CSV, PDF 어떤 양식이든 올리면 AI가 지급·공제를 정리해요", href: "/upload" },
   { no: "02", when: "확인할 때", title: "틀린 곳만 고치기", desc: "숫자가 의심되는 곳을 먼저 보여주고, 고치면 명세서에 바로 반영돼요", href: "/review" },
-  { no: "03", when: "명세서를 만들 때", title: "직원별 급여명세서", desc: "확인한 금액으로 직원마다 명세서를 만들어요", href: "/payslips" },
+  { no: "03", when: "명세서를 만들 때", title: "직원별 급여명세서", desc: "올린 급여대장으로 직원마다 명세서를 만들어요", href: "/payslips" },
   { no: "04", when: "보낼 때", title: "알림톡으로 발송", desc: "직원은 휴대폰 링크로 명세서를 확인해요", href: "/send" },
 ];
 

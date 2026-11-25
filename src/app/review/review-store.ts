@@ -33,8 +33,6 @@ export type ReviewState = {
   batches: PayrollBatch[];
   activeBatch: number;
   selectedId: string;
-  /** 확인 완료한 직원 id (직원 id는 batch마다 겹치지 않는다) */
-  confirmed: string[];
   /** 합계 칸을 고친 경우 원래 값 (스키마의 edited는 항목에만 있어서 여기 둔다) */
   totalsBefore: Record<string, Partial<Record<TotalField, number>>>;
   history: EditLog[];
@@ -60,7 +58,6 @@ export function initialReviewState(r: ParseResult): ReviewState {
     batches,
     activeBatch: 0,
     selectedId: batches[0]?.employees[0]?.id ?? "",
-    confirmed: [],
     totalsBefore: {},
     history: [],
   };

@@ -167,7 +167,6 @@ function EmptyState() {
 function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResult }) {
   const { batches, history, totalsBefore } = state;
   const batch: PayrollBatch = batches[state.activeBatch] ?? batches[0];
-  const confirmed = new Set(state.confirmed);
   const selected = batch?.employees.find((e) => e.id === state.selectedId) ?? batch?.employees[0];
   /** 파일 전체(모든 사업장·귀속월)의 오류. 다음 단계로 가려면 0이어야 한다 */
   const totalErrors = batches.reduce(
@@ -177,26 +176,17 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
   const editsOf = (e: EmployeePay) =>
     [...e.earnings, ...e.deductions].filter((i) => i.edited).length + Object.keys(totalsBefore[e.id] ?? {}).length;
 
-  /** 한꺼번에 확인 완료할 수 있는 직원: 오류가 없는 사람. 확인 필요(경고)는 보고 넘어갈 수 있으니 포함한다 */
-  const clean = (e: EmployeePay) => !e.issues.some((i) => i.level === "error");
   /** 귀속월별로 나눠서 보여 준다. 고른 월의 사업장(배치)만 왼쪽 목록에 나온다 */
   const months = [...new Set(batches.map((b) => b.payPeriod))].sort();
   const activeMonth = batch?.payPeriod;
   const monthBatches = batches.map((b, bi) => ({ b, bi })).filter(({ b }) => b.payPeriod === activeMonth);
   const everyone = monthBatches.flatMap(({ b }) => b.employees);
-  const bulkTargets = everyone.filter((e) => !confirmed.has(e.id) && clean(e));
-  const confirmedAll = everyone.filter((e) => confirmed.has(e.id)).length;
 
   /** 다른 월을 고르면 그 월의 첫 사업장·첫 직원으로 옮긴다 */
   function selectMonth(period: string) {
     const bi = batches.findIndex((b) => b.payPeriod === period);
     if (bi < 0 || bi === state.activeBatch) return;
     updateReview((s) => ({ ...s, activeBatch: bi, selectedId: s.batches[bi]?.employees[0]?.id ?? "" }));
-  }
-
-  function confirmAllClean() {
-    const ids = bulkTargets.map((e) => e.id);
-    updateReview((s) => ({ ...s, confirmed: [...new Set([...s.confirmed, ...ids])] }));
   }
 
 
@@ -232,8 +222,6 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
         ...s,
         ...extra?.(s),
         batches: nextBatches,
-        // 값을 고치면 "확인 완료"는 다시 풀어 둔다
-        confirmed: s.confirmed.filter((c) => c !== id),
         history: addLog(s.history, { ...log, employeeId: id, employeeName: target.name }),
       };
     });
@@ -374,7 +362,7 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
   return (
     <div className="flex flex-col gap-5">
       {/* 맨 위: 월별 인건비 (누르면 그 월의 직원 목록으로 바뀐다) */}
-      <MonthTabs batches={batches} months={months} active={activeMonth} confirmed={confirmed} onPick={selectMonth} />
+      <MonthTabs batches={batches} months={months} active={activeMonth} onPick={selectMonth} />
 
       {/* 숫자 오류 의심 내역 */}
       <SuspectBanner batches={batches} onPick={selectEmployee} />
@@ -386,9 +374,6 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
             <h2 className="font-bold">
               {fmtMonth(activeMonth)} 임직원 {everyone.length}명
             </h2>
-            <span className="text-xs text-muted-foreground">
-              확인 {confirmedAll}/{everyone.length}
-            </span>
           </div>
           <nav aria-label="직원 목록" className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto rounded-3xl bg-white p-3 shadow-[0_4px_24px_rgba(0,0,0,0.05)] ring-1 ring-neutral-200/70">
             {monthBatches.map(({ b, bi }) => (
@@ -415,7 +400,6 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
                       </span>
                       <span className="flex shrink-0 items-center gap-1.5">
                         <span className={`text-xs tabular-nums ${active ? "text-neutral-300" : "text-muted-foreground"}`}>{won(e.netPay)}</span>
-                        {confirmed.has(e.id) && <CheckCircle2 aria-label="확인 완료" className={`size-4 ${active ? "text-white" : "text-indigo-500"}`} />}
                       </span>
                     </button>
                   );
@@ -423,9 +407,6 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
               </div>
             ))}
           </nav>
-          <Button variant="outline" size="sm" disabled={bulkTargets.length === 0} onClick={confirmAllClean}>
-            오류 없는 직원 모두 확인{bulkTargets.length > 0 ? ` (${bulkTargets.length}명)` : ""}
-          </Button>
         </aside>
 
         {/* 가운데: 명세서에 들어갈 내용 (수정) */}
@@ -490,7 +471,7 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
         <p className="text-sm text-muted-foreground">
-          {totalErrors > 0 ? `오류 ${totalErrors}개를 먼저 고쳐 주세요.` : "오류가 없어요. 명세서를 만들 수 있어요."}
+          {totalErrors > 0 ? `오류 ${totalErrors}개를 먼저 고쳐 주세요. 오류가 남은 직원은 명세서가 만들어지지 않아요.` : "오류가 없어요. 고친 내용은 그대로 명세서에 반영돼요."}
         </p>
         {totalErrors > 0 ? (
           <Button disabled>다음: 명세서 만들기</Button>
@@ -517,13 +498,11 @@ function MonthTabs({
   batches,
   months,
   active,
-  confirmed,
   onPick,
 }: {
   batches: PayrollBatch[];
   months: string[];
   active?: string;
-  confirmed: Set<string>;
   onPick: (period: string) => void;
 }) {
   return (
@@ -537,7 +516,6 @@ function MonthTabs({
           const emps = batches.filter((b) => b.payPeriod === m).flatMap((b) => b.employees);
           const cost = emps.reduce((n, e) => n + e.totalEarnings, 0);
           const net = emps.reduce((n, e) => n + e.netPay, 0);
-          const done = emps.filter((e) => confirmed.has(e.id)).length;
           const on = m === active;
           return (
             <button
@@ -553,7 +531,7 @@ function MonthTabs({
               <span className="flex items-baseline justify-between gap-2">
                 <span className="font-semibold">{fmtMonth(m)}</span>
                 <span className={`text-xs ${on ? "text-neutral-300" : "text-muted-foreground"}`}>
-                  {emps.length}명 · 확인 {done}/{emps.length}
+                  {emps.length}명
                 </span>
               </span>
               <span className={`text-xs ${on ? "text-neutral-300" : "text-muted-foreground"}`}>인건비 (지급합계)</span>

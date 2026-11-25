@@ -57,22 +57,22 @@ export function HistoryClient() {
     return (
       <Guide
         title="아직 보낸 명세서가 없어요"
-        text="급여명세서에서 급여대장을 올리고 확인한 뒤 발송하면, 여기서 받은 사람과 열람 여부를 볼 수 있어요."
+        text="급여명세서에서 급여대장을 올리고 발송하면, 여기서 받은 사람과 열람 여부를 볼 수 있어요."
         href="/upload"
         button="급여명세서 만들러 가기"
       />
     );
   }
 
-  const { batches, confirmed, signature } = reviewed;
+  const { batches, issuable, signature } = reviewed;
   const same = sendState && sendState.signature === signature;
   const records = same ? sendState.records : {};
   const opens = same ? (sendState.opens ?? {}) : {};
 
-  // 발송 대상(확인 완료한 직원)만 센다
+  // 발송 대상(오류가 없는 직원)만 센다
   const rows: Row[] = batches.flatMap((batch) =>
     batch.employees
-      .filter((e) => confirmed.has(e.id))
+      .filter((e) => issuable.has(e.id))
       .map((e) => {
         const sent: Row["sent"] = {};
         for (const c of CHANNELS) {

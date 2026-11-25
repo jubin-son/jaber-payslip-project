@@ -20,16 +20,14 @@ export type Reviewed =
   | { status: "loading" }
   /** 1~2단계에서 올린 파일이 없다 */
   | { status: "no-file" }
-  /** 파일은 있는데 3단계 확인 화면을 아직 열지 않았다 */
-  | { status: "not-reviewed" }
   | {
       status: "ready";
       /** 어떤 파일의 결과인지 알아보는 표식 (다른 파일을 올리면 달라진다) */
       signature: string;
-      /** 담당자가 고친 값이 반영된 사업장·귀속월별 데이터 */
+      /** 담당자가 고친 값이 반영된 사업장·귀속월별 데이터. 확인·수정 화면을 열지 않았으면 올린 파일 그대로 */
       batches: PayrollBatch[];
-      /** 3단계에서 확인 완료한 직원 id */
-      confirmed: Set<string>;
+      /** 명세서를 만들고 발송할 수 있는 직원 id: 오류가 없는 직원 (따로 '확인'을 누르지 않아도 된다) */
+      issuable: Set<string>;
       /** 아직 남아 있는 오류 개수 (모든 사업장 합계) */
       errorCount: number;
     };
@@ -41,13 +39,17 @@ export function useReviewed(): Reviewed {
 
   if (!hydrated) return { status: "loading" };
   if (!result) return { status: "no-file" };
-  if (!state || state.signature !== signatureOf(result)) return { status: "not-reviewed" };
+  // 확인·수정 화면을 거치지 않았으면 올린 파일 그대로, 거쳤으면 고친 값이 반영된 사본을 쓴다
+  const signature = signatureOf(result);
+  const batches = state && state.signature === signature ? state.batches : result.batches;
 
-  const errorCount = state.batches.reduce(
+  const hasError = (issues: { level: string }[]) => issues.some((i) => i.level === "error");
+  const errorCount = batches.reduce(
     (n, b) => n + [...b.issues, ...b.employees.flatMap((e) => e.issues)].filter((i) => i.level === "error").length,
     0,
   );
-  return { status: "ready", signature: state.signature, batches: state.batches, confirmed: new Set(state.confirmed), errorCount };
+  const issuable = new Set(batches.flatMap((b) => b.employees).filter((e) => !hasError(e.issues)).map((e) => e.id));
+  return { status: "ready", signature, batches, issuable, errorCount };
 }
 
 // ---------- 표시용 도우미 ----------
