@@ -133,15 +133,15 @@ function matchEmployee(e: EmployeePay, staff: JaberEmployee[]): { match: Employe
 
 /** 배치마다 자버 사업장을 찾고, 직원마다 자버 직원을 찾아 match와 issue를 채운다 (배치를 직접 고친다).
  *  roster: 임직원 관리에 등록된 명부. 없으면 자버 직원연락처 원본
- *  own: 사업주 화면에서 내 사업장 목록 (맨 앞이 지금 관리 중인 사업장). 주면 내 사업장 안에서만 찾는다 */
+ *  own: 사업주 화면에서 내 사업장 목록 (맨 앞이 가입한 사업장). 주면 내 사업장 안에서만 찾는다 */
 export function matchJaber(batches: PayrollBatch[], roster: JaberEmployee[] = jaberEmployees, own?: JaberCompany | JaberCompany[]): void {
   const mine = own === undefined ? undefined : Array.isArray(own) ? own : [own];
   for (const b of batches) {
     // 사업주 화면: 올린 파일은 내 사업장 것이다. 사업장이 여러 곳이면 상호(없으면 직원 이름)로 어느 사업장인지 고르고,
-    // 못 고르면 지금 관리 중인 사업장으로 둔다. 상호가 내 사업장이 아닌 다른 사업장으로 읽히면 확인하게 한다
+    // 못 고르면 가입한 사업장으로 두고 확인하게 한다. 상호가 내 사업장이 아닌 다른 사업장으로 읽히면 확인하게 한다
     if (mine && mine.length > 0) {
-      const picked = mine.length > 1 ? findCompany(b, roster, mine).company : undefined;
-      matchOwn(b, roster, picked ?? mine[0], mine);
+      const picked = mine.length > 1 ? findCompany(b, roster, mine).company : mine[0];
+      matchOwn(b, roster, picked ?? mine[0], mine, !picked);
       continue;
     }
     const { company, how } = findCompany(b, roster);
@@ -172,14 +172,20 @@ export function matchJaber(batches: PayrollBatch[], roster: JaberEmployee[] = ja
 }
 
 /** 내 사업장 기준 매칭: 사업장은 고정하고, 내 직원 명부에서만 직원을 찾는다 */
-function matchOwn(b: PayrollBatch, roster: JaberEmployee[], own: JaberCompany, mine: JaberCompany[] = [own]): void {
+function matchOwn(b: PayrollBatch, roster: JaberEmployee[], own: JaberCompany, mine: JaberCompany[] = [own], guessed = false): void {
   b.issues = b.issues.filter((i) => !MATCH_CODES.includes(i.code));
   const other = findCompanyByName(b.companyName);
   if (other && !mine.some((m) => m.code === other.code)) {
     b.issues.push({
       level: "warning",
       code: "MATCH_NOT_FOUND",
-      message: `파일에 적힌 상호 '${b.companyName}'이(가) 내 사업장(${own.name})과 달라요. 다른 사업장의 급여대장이 아닌지 확인해 주세요.`,
+      message: `파일에 적힌 상호 '${b.companyName}'이(가) 내 사업장(${mine.map((m) => m.name).join(", ")})과 달라요. 다른 사업장의 급여대장이 아닌지 확인해 주세요.`,
+    });
+  } else if (guessed) {
+    b.issues.push({
+      level: "warning",
+      code: "MATCH_NOT_FOUND",
+      message: `'${b.companyName}'이(가) 내 사업장 중 어디인지 알 수 없어 ${own.name}(으)로 뒀어요. 맞는지 확인해 주세요.`,
     });
   }
   b.companyCode = own.code;

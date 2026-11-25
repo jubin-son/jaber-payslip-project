@@ -1,9 +1,10 @@
 "use client";
-// 기본 관리: 사업주 본인이 ① 내 사업장 목록(여러 곳 추가·전환) ② 사업장 정보 ③ 상시근로자 수 ④ 엑셀 항목 연결(+ 비과세)을 정하는 화면.
+// 기본 관리: 사업주 본인이 ① 내 사업장(여러 곳 등록, 사업장마다 정보·상시근로자 수) ② 엑셀 항목 연결(+ 비과세)을 정하는 화면.
+// 사업장을 골라서 보는 건 임직원 관리에서 한다. 여기서는 등록하고 고치기만 한다.
+// 엑셀 항목 연결은 내 사업장 전체에 쓴다(한 파일에 여러 사업장이 들어와도 같은 연결로 읽는다).
 // 소득 구분(근로소득·사업소득)은 직원마다 달라서 임직원 관리에서 정한다.
-// ②~④는 지금 관리 중인 사업장의 값만 보이고 고쳐진다.
 import { useState } from "react";
-import { Check, Plus, Store, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { JaberCompany } from "@/lib/jaber-db";
@@ -11,10 +12,11 @@ import { jaberCompanies } from "@/lib/jaber-db";
 import {
   addWorkplace,
   baseCompany,
+  headcountOf,
   isJaberCompany,
   removeWorkplace,
-  selectWorkplace,
-  updateMyBusiness,
+  settingsStore,
+  updateBusiness,
   useOwner,
   type CompanyProfile,
   type ItemLink,
@@ -29,23 +31,14 @@ export function SettingsClient() {
   if (!owner) return <p className="text-muted-foreground">불러오는 중…</p>;
   return (
     <div className="flex flex-col gap-6">
-      <WorkplacesCard owner={owner} />
-      <p className="flex items-center gap-2 rounded-xl bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
-        <Store className="size-4 shrink-0" />
-        <span>
-          아래 설정은 <b>{owner.company.name}</b>에 적용돼요.
-          {owner.workplaces.length > 1 && " 다른 사업장은 위 목록에서 '관리하기'를 눌러 바꿔요."}
-        </span>
-      </p>
-      {/* key: 관리할 사업장을 바꾸면 입력 칸을 새 사업장 값으로 다시 채운다 */}
-      <ProfileCard key={owner.code} company={owner.company} />
-      <HeadcountCard current={owner.business.headcount ?? "자동"} />
-      <ItemLinkCard links={owner.business.itemLinks} />
+      {/* key: 테스트로 사업주를 바꾸면 펼친 칸을 처음 상태로 */}
+      <WorkplacesCard key={owner.login} owner={owner} />
+      <ItemLinkCard login={owner.login} links={owner.business.itemLinks} />
     </div>
   );
 }
 
-// ---------- ① 내 사업장 목록 ----------
+// ---------- ① 내 사업장 ----------
 
 const BIZ_NO = /^\d{3}-\d{2}-\d{5}$/;
 
@@ -57,7 +50,12 @@ function formatBizNo(v: string): string {
   return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
 }
 
+const HEADCOUNT_SHORT: Record<HeadcountSetting, string> = { 자동: "상시근로자 자동", "5이상": "상시 5명 이상", "5미만": "상시 5명 미만" };
+
 function WorkplacesCard({ owner }: { owner: Owner }) {
+  const settings = settingsStore.use();
+  // 사업장이 한 곳이면 정보를 바로 펼쳐 둔다
+  const [open, setOpen] = useState<string | null>(owner.workplaces.length === 1 ? owner.login : null);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
 
@@ -71,51 +69,54 @@ function WorkplacesCard({ owner }: { owner: Owner }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">① 내 사업장</CardTitle>
+        <CardTitle className="text-lg">① 내 사업장 {owner.workplaces.length > 1 && <span className="text-muted-foreground">{owner.workplaces.length}곳</span>}</CardTitle>
         <CardDescription>
-          사업자등록을 여러 개 갖고 있으면 사업장마다 추가해 두세요. 사업장마다 정보·발행 설정·직원 명부를 따로 관리하고, 급여대장 한 파일에 여러
-          사업장이 들어 있으면 상호를 보고 사업장별로 나눠 읽어요.
+          사업자등록을 여러 개 갖고 있으면 사업장마다 등록해 두세요. 사업장마다 명세서에 들어갈 정보와 상시근로자 수를 따로 정하고, 급여대장 한
+          파일에 여러 사업장이 들어 있으면 상호를 보고 사업장별로 나눠 읽어요. 직원은 임직원 관리에서 사업장을 골라 등록해요.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ul className="flex flex-col divide-y rounded-xl border">
           {owner.workplaces.map((c) => {
-            const current = c.code === owner.code;
             const main = c.code === owner.login;
+            const isOpen = open === c.code;
             return (
-              <li key={c.code} className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 ${current ? "bg-indigo-50/60" : ""}`}>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="truncate font-semibold">{c.name}</span>
-                    {main && <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] text-neutral-600">가입 사업장</span>}
-                    {!isJaberCompany(c.code) && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">새로 등록</span>}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {c.bizRegNo} · 대표 {c.owner}
-                    {c.industry ? ` · ${c.industry}` : ""}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {current ? (
-                    <span className="flex items-center gap-1 text-sm font-semibold text-indigo-700">
-                      <Check className="size-4" /> 관리 중
+              <li key={c.code} className="flex flex-col">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-semibold">{c.name}</span>
+                      {main && <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] text-neutral-600">가입 사업장</span>}
+                      {!isJaberCompany(c.code) && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">새로 등록</span>}
                     </span>
-                  ) : (
-                    <Button variant="outline" size="sm" onClick={() => selectWorkplace(c.code)}>
-                      관리하기
+                    <span className="text-xs text-muted-foreground">
+                      {c.bizRegNo} · 대표 {c.owner}
+                      {c.industry ? ` · ${c.industry}` : ""} · {HEADCOUNT_SHORT[headcountOf(settings, c.code)]}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : c.code)}>
+                      {isOpen ? "닫기" : "정보 수정"}
+                      <ChevronDown className={`size-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
                     </Button>
-                  )}
-                  {!main && (
-                    <button type="button" aria-label={`${c.name} 빼기`} onClick={() => remove(c)} className="p-1 text-neutral-400 hover:text-red-600">
-                      <Trash2 className="size-4" />
-                    </button>
-                  )}
+                    {!main && (
+                      <button type="button" aria-label={`${c.name} 빼기`} onClick={() => remove(c)} className="p-1 text-neutral-400 hover:text-red-600">
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {isOpen && (
+                  <div className="flex flex-col gap-6 border-t bg-neutral-50/60 px-4 py-4">
+                    <ProfileForm company={c} />
+                    <HeadcountPicker code={c.code} current={headcountOf(settings, c.code)} />
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
-        {added && <p className="text-sm text-emerald-700">&lsquo;{added}&rsquo;을(를) 추가했어요. 지금부터 이 사업장을 관리해요.</p>}
+        {added && <p className="text-sm text-emerald-700">&lsquo;{added}&rsquo;을(를) 추가했어요.</p>}
         {adding ? (
           <AddWorkplaceForm
             owner={owner}
@@ -142,7 +143,6 @@ function WorkplacesCard({ owner }: { owner: Owner }) {
     </Card>
   );
 }
-
 function AddWorkplaceForm({ owner, onDone, onCancel }: { owner: Owner; onDone: (name: string) => void; onCancel: () => void }) {
   const main = owner.workplaces[0];
   const [draft, setDraft] = useState<CompanyProfile>({
@@ -276,7 +276,7 @@ function AddWorkplaceForm({ owner, onDone, onCancel }: { owner: Owner; onDone: (
   );
 }
 
-// ---------- ② 사업장 정보 ----------
+// ---------- 사업장 한 곳의 정보·상시근로자 수 (내 사업장 목록에서 펼친다) ----------
 
 const PROFILE_FIELDS: { key: keyof CompanyProfile; label: string; placeholder?: string; wide?: boolean }[] = [
   { key: "name", label: "상호" },
@@ -287,7 +287,7 @@ const PROFILE_FIELDS: { key: keyof CompanyProfile; label: string; placeholder?: 
   { key: "address", label: "사업장 주소", wide: true },
 ];
 
-function ProfileCard({ company }: { company: JaberCompany }) {
+function ProfileForm({ company }: { company: JaberCompany }) {
   const [draft, setDraft] = useState<CompanyProfile>(() => ({
     name: company.name,
     owner: company.owner,
@@ -315,23 +315,22 @@ function ProfileCard({ company }: { company: JaberCompany }) {
       const v = typeof draft[k] === "string" ? (draft[k] as string).trim() : draft[k];
       if (v !== (base?.[k] ?? "")) (profile as Record<string, unknown>)[k] = v || undefined;
     }
-    updateMyBusiness((b) => ({ ...b, profile }));
+    updateBusiness(company.code, (b) => ({ ...b, profile }));
     setSaved(true);
   }
 
   const box = "rounded-lg border bg-white px-3 py-2 text-sm";
   const field = "flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground";
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">② 사업장 정보</CardTitle>
-        <CardDescription>명세서 머리글과 직원 안내에 쓰는 정보예요. 처음 등록할 때 넣은 값이 들어 있고, 바뀐 게 있으면 고쳐 주세요.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <section className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h3 className="font-semibold">사업장 정보</h3>
+        <p className="text-sm text-muted-foreground">명세서 머리글과 직원 안내에 쓰는 정보예요. 처음 등록할 때 넣은 값이 들어 있고, 바뀐 게 있으면 고쳐 주세요.</p>
         <p className="text-sm text-muted-foreground">
           사업장코드 <span className="font-mono text-foreground">{company.code}</span> · {isJaberCompany(company.code) ? "자버 가입일" : "등록일"}{" "}
           {company.joinedAt}
         </p>
+      </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {PROFILE_FIELDS.map((f) => (
             <label key={f.key} className={`${field} ${f.wide ? "sm:col-span-2" : ""}`}>
@@ -365,12 +364,10 @@ function ProfileCard({ company }: { company: JaberCompany }) {
             저장
           </Button>
         </div>
-      </CardContent>
-    </Card>
+    </section>
   );
 }
 
-// ---------- ② 상시근로자 수 ----------
 
 const HEADCOUNT_OPTIONS: { value: HeadcountSetting; title: string; text: string }[] = [
   { value: "자동", title: "자동 (급여대장 인원으로 추정)", text: "올린 급여대장의 직원 수(일용·단시간 포함, 사업소득자 제외)로 달마다 판단해요" },
@@ -378,17 +375,16 @@ const HEADCOUNT_OPTIONS: { value: HeadcountSetting; title: string; text: string 
   { value: "5미만", title: "상시 5명 미만", text: "가산·연차·공휴일 유급은 법정 의무가 아니에요. 주휴수당은 똑같이 적용돼요" },
 ];
 
-function HeadcountCard({ current }: { current: HeadcountSetting }) {
+function HeadcountPicker({ code, current }: { code: string; current: HeadcountSetting }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">③ 상시근로자 수</CardTitle>
-        <CardDescription>
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <h3 className="font-semibold">상시근로자 수</h3>
+        <p className="text-sm text-muted-foreground">
           임금명세서를 주는 의무와 기재사항은 사업장 규모와 상관없이 같아요. 다만 상시 5명 미만이면 연장·야간·휴일 가산율과 법정 연차수당을 적을 필요가
           없어서, 명세서의 계산방법과 확인 메모가 달라져요. 상시근로자 수는 전 1개월 연인원을 가동일수로 나눠 세므로 달마다 바뀔 수 있어요.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </p>
+      </div>
         <div role="radiogroup" aria-label="상시근로자 수" className="grid gap-3 sm:grid-cols-3">
           {HEADCOUNT_OPTIONS.map((o) => (
             <button
@@ -396,7 +392,7 @@ function HeadcountCard({ current }: { current: HeadcountSetting }) {
               type="button"
               role="radio"
               aria-checked={current === o.value}
-              onClick={() => updateMyBusiness((b) => ({ ...b, headcount: o.value }))}
+              onClick={() => updateBusiness(code, (b) => ({ ...b, headcount: o.value }))}
               className={`flex flex-col gap-1 rounded-2xl px-4 py-3 text-left ring-1 transition-colors ${
                 current === o.value ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white ring-neutral-200 hover:bg-neutral-50"
               }`}
@@ -406,17 +402,16 @@ function HeadcountCard({ current }: { current: HeadcountSetting }) {
             </button>
           ))}
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           동거하는 친족만 쓰는 사업장과 가사사용인에게는 근로기준법 자체가 적용되지 않아요(근로기준법 제11조 제1항 단서).
         </p>
-      </CardContent>
-    </Card>
+    </section>
   );
 }
 
-// ---------- ③ 엑셀 항목 연결 ----------
+// ---------- ② 엑셀 항목 연결 (내 사업장 전체) ----------
 
-function ItemLinkCard({ links }: { links: ItemLink[] }) {
+function ItemLinkCard({ login, links }: { login: string; links: ItemLink[] }) {
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState<ItemLink["category"]>("기본급");
   const [taxFree, setTaxFree] = useState(false);
@@ -434,22 +429,22 @@ function ItemLinkCard({ links }: { links: ItemLink[] }) {
   function add() {
     if (!ok) return;
     const link: ItemLink = { label: label.trim(), category, ...(taxFree && isEarning(category) ? { taxFree: true } : {}) };
-    updateMyBusiness((b) => ({ ...b, itemLinks: [...b.itemLinks, link] }));
+    updateBusiness(login, (b) => ({ ...b, itemLinks: [...b.itemLinks, link] }));
     setLabel("");
     setTaxFree(false);
   }
   function remove(i: number) {
-    updateMyBusiness((b) => ({ ...b, itemLinks: b.itemLinks.filter((_, n) => n !== i) }));
+    updateBusiness(login, (b) => ({ ...b, itemLinks: b.itemLinks.filter((_, n) => n !== i) }));
   }
   function change(i: number, c: ItemLink["category"]) {
     // 공제·금액 아님으로 바꾸면 비과세 표시는 의미가 없어서 지운다
-    updateMyBusiness((b) => ({
+    updateBusiness(login, (b) => ({
       ...b,
       itemLinks: b.itemLinks.map((l, n) => (n === i ? { label: l.label, category: c, ...(l.taxFree && isEarning(c) ? { taxFree: true } : {}) } : l)),
     }));
   }
   function toggleTaxFree(i: number, on: boolean) {
-    updateMyBusiness((b) => ({
+    updateBusiness(login, (b) => ({
       ...b,
       itemLinks: b.itemLinks.map((l, n) => (n === i ? { label: l.label, category: l.category, ...(on ? { taxFree: true } : {}) } : l)),
     }));
@@ -458,10 +453,10 @@ function ItemLinkCard({ links }: { links: ItemLink[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">④ 엑셀 항목 연결</CardTitle>
+        <CardTitle className="text-lg">② 엑셀 항목 연결</CardTitle>
         <CardDescription>
           급여대장 엑셀의 열 이름을 어떤 수당·공제 항목으로 읽을지 정해요. 사무소마다 쓰는 이름이 달라서 자동으로 못 읽는 항목을 여기서 연결하면, 다음
-          업로드부터 바로 그 항목으로 들어가요. 연구활동비·보육수당 같은 비과세 수당은 &lsquo;비과세&rsquo;에 체크해 주세요.
+          업로드부터 바로 그 항목으로 들어가요. 내 사업장 모두에 같이 적용돼요. 연구활동비·보육수당 같은 비과세 수당은 &lsquo;비과세&rsquo;에 체크해 주세요.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

@@ -151,17 +151,47 @@ export function EmployeesClient() {
   /** 방금 등록한 회원번호 (목록에서 강조) */
   const [fresh, setFresh] = useState<string[]>([]);
   const [mode, setMode] = useState<"none" | "excel" | "manual">("none");
+  /** 지금 보고 있는 사업장 (사업장이 여러 곳일 때 위에서 고른다) */
+  const [picked, setPicked] = useState<string | null>(null);
 
   if (!roster || !owner) return <p className="text-muted-foreground">불러오는 중…</p>;
-  const own = owner.company;
+  const own = owner.workplaces.find((c) => c.code === picked) ?? owner.workplaces[0] ?? owner.company;
 
   function done(ids: string[]) {
     setFresh(ids);
     setMode("none");
   }
+  function pick(code: string) {
+    setPicked(code);
+    setFresh([]);
+    setMode("none");
+  }
 
   return (
     <div className="flex flex-col gap-6">
+      {owner.workplaces.length > 1 && (
+        <div role="tablist" aria-label="사업장" className="flex flex-wrap gap-2">
+          {owner.workplaces.map((c) => {
+            const on = c.code === own.code;
+            const n = roster.filter((e) => e.companyCode === c.code).length;
+            return (
+              <button
+                key={c.code}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => pick(c.code)}
+                className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ring-1 transition-colors ${
+                  on ? "bg-neutral-900 text-white ring-neutral-900" : "bg-white text-neutral-600 ring-neutral-200 hover:bg-neutral-50"
+                }`}
+              >
+                {c.name}
+                <span className={`rounded-full px-1.5 text-xs ${on ? "bg-white/20" : "bg-neutral-100 text-neutral-500"}`}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">① 직원 등록</CardTitle>

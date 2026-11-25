@@ -3,10 +3,9 @@
 // 탭을 닫아도 남는다. 나중에 저장소(Supabase)를 붙이면 이 파일만 바꾸면 된다.
 // 이 화면을 쓰는 사람은 자버에 가입한 사업주 본인이다. 사업장을 여러 곳 가질 수 있다.
 //   - 로그인한 사업주: 아직 로그인이 없어서 테스트용으로 사업장 16곳 중 하나를 고른다 (ownerStore = 가입한 사업장코드)
-//   - 내 사업장 목록: 가입한 사업장 + 기본 관리에서 추가한 사업장 (accountStore). 그중 한 곳을 골라 관리한다
-//     기본 관리·임직원 관리 값은 지금 관리 중인 사업장 것이 보이고 고쳐진다
-//   - 기본 관리: 내 사업장 정보와 급여명세서 발행 설정(상시근로자 수, 엑셀 항목 → 표준 항목 연결)
-//   - 임직원 관리: 직원 명부(소득 구분 포함). 처음에는 자버 직원연락처(테스트 데이터)로 채워 둔다. 화면에는 내 사업장 직원만 보인다
+//   - 내 사업장 목록: 가입한 사업장 + 기본 관리에서 추가한 사업장 (accountStore)
+//   - 기본 관리: 사업장마다 정보·상시근로자 수, 내 사업장 전체에 쓰는 엑셀 항목 → 표준 항목 연결(가입한 사업장 칸에 둔다)
+//   - 임직원 관리: 직원 명부(소득 구분 포함). 처음에는 자버 직원연락처(테스트 데이터)로 채워 둔다. 화면에서 사업장을 골라 그 사업장 직원만 본다
 import { useSyncExternalStore } from "react";
 import type { EmployeePay, PayCategory } from "@/types/payroll";
 import { jaberCompanies, jaberEmployees, type IncomeType, type JaberCompany, type JaberEmployee } from "@/lib/jaber-db";
@@ -96,9 +95,8 @@ export const ownerStore = createLocalStore<string>("jaber.hr.owner.v1", () => ja
 /**
  * 사업주 한 명의 사업장 목록. 로그인 사업장코드 → 계정.
  * workplaces: 가입한 사업장을 뺀, 기본 관리에서 추가한 사업장코드 (가입한 사업장은 늘 맨 앞에 있다)
- * current: 지금 관리 중인 사업장코드
  */
-export type OwnerAccount = { workplaces: string[]; current?: string };
+export type OwnerAccount = { workplaces: string[] };
 export const accountStore = createLocalStore<Record<string, OwnerAccount>>("jaber.hr.accounts.v1", () => ({}));
 
 /** 자버에 없는 사업장을 사업주가 새로 등록한 것. 사업장코드는 이 화면에서 만든다(JB-9001부터) */
@@ -121,19 +119,7 @@ function workplaceCodes(login: string, accounts: Record<string, OwnerAccount> | 
   return [login, ...added.filter((c) => c !== login && baseCompany(c))];
 }
 
-/** 지금 관리 중인 사업장코드 (목록에 없으면 가입한 사업장) */
-function currentCode(login: string, accounts: Record<string, OwnerAccount> | null): string {
-  const cur = accounts?.[login]?.current;
-  return cur && workplaceCodes(login, accounts).includes(cur) ? cur : login;
-}
-
-/** 관리할 사업장 바꾸기 */
-export function selectWorkplace(code: string) {
-  const login = ownerStore.get();
-  accountStore.set((a) => ({ ...a, [login]: { workplaces: a[login]?.workplaces ?? [], current: code } }));
-}
-
-/** 내 사업장에 추가하고 바로 그 사업장을 관리한다. 자버 가입 사업장이면 code만, 새 사업장이면 정보를 받아 코드를 만든다 */
+/** 내 사업장에 추가한다. 자버 가입 사업장이면 code만, 새 사업장이면 정보를 받아 코드를 만든다 */
 export function addWorkplace(input: { code: string } | { company: Omit<JaberCompany, "code" | "joinedAt"> }): string {
   let code: string;
   if ("code" in input) {
@@ -148,7 +134,7 @@ export function addWorkplace(input: { code: string } | { company: Omit<JaberComp
   const login = ownerStore.get();
   accountStore.set((a) => {
     const prev = a[login]?.workplaces ?? [];
-    return { ...a, [login]: { workplaces: prev.includes(code) || code === login ? prev : [...prev, code], current: code } };
+    return { ...a, [login]: { workplaces: prev.includes(code) || code === login ? prev : [...prev, code] } };
   });
   return code;
 }
@@ -160,7 +146,7 @@ export function removeWorkplace(code: string) {
   accountStore.set((a) => {
     const prev = a[login];
     if (!prev) return a;
-    return { ...a, [login]: { workplaces: prev.workplaces.filter((c) => c !== code), current: prev.current === code ? login : prev.current } };
+    return { ...a, [login]: { workplaces: prev.workplaces.filter((c) => c !== code) } };
   });
 }
 
@@ -173,8 +159,7 @@ export const rosterStore = createLocalStore<JaberEmployee[]>("jaber.hr.roster.v1
  * 매칭 결과(match)와 매칭 안내(issue)만 바뀌고, 금액·고친 내용·수정 기록은 그대로 둔다.
  */
 function rematchSavedPayroll(roster: JaberEmployee[]) {
-  const owner = getOwner();
-  const own = owner ? matchOrder(owner) : undefined;
+  const own = getOwner()?.workplaces;
   const parsed = getParseResult();
   if (parsed) {
     const next = structuredClone(parsed);
@@ -209,19 +194,17 @@ export function incomeTypeOfEmployee(roster: JaberEmployee[] | null, e: Pick<Emp
   return (id && roster?.find((r) => r.memberId === id)?.incomeType) || "근로소득";
 }
 
-/** 지금 관리 중인 사업장의 기본 관리 값을 고친다 */
-export function updateMyBusiness(fn: (b: BusinessSettings) => BusinessSettings) {
-  const code = currentCode(ownerStore.get(), accountStore.get());
+/** 사업장 한 곳의 기본 관리 값을 고친다. 엑셀 항목 연결은 가입한 사업장(owner.login) 칸에 둔다 */
+export function updateBusiness(code: string, fn: (b: BusinessSettings) => BusinessSettings) {
   settingsStore.set((s) => ({ ...s, byCompany: { ...s.byCompany, [code]: fn(businessOf(s, code)) } }));
 }
 
 export type Owner = {
   /** 로그인한 사업주가 자버에 가입한 사업장코드 */
   login: string;
-  /** 지금 관리 중인 사업장코드 */
-  code: string;
-  /** 지금 관리 중인 사업장 (사업주가 고친 정보까지 반영) */
+  /** 가입한 사업장 (사업주가 고친 정보까지 반영) */
   company: JaberCompany;
+  /** 가입한 사업장의 기본 관리 값. itemLinks는 내 사업장 전체에 쓴다 */
   business: BusinessSettings;
   /** 내 사업장 전체 (가입한 사업장이 맨 앞) */
   workplaces: JaberCompany[];
@@ -230,16 +213,15 @@ export type Owner = {
 function ownerOf(login: string, accounts: Record<string, OwnerAccount> | null, settings: HrSettings | null): Owner | null {
   const loginCode = baseCompany(login) ? login : jaberCompanies[0]?.code;
   if (!loginCode) return null;
-  const code = currentCode(loginCode, accounts);
-  const company = companyOf(settings, code);
+  const company = companyOf(settings, loginCode);
   if (!company) return null;
   const workplaces = workplaceCodes(loginCode, accounts)
     .map((c) => companyOf(settings, c))
     .filter((c): c is JaberCompany => !!c);
-  return { login: loginCode, code, company, business: businessOf(settings, code), workplaces };
+  return { login: loginCode, company, business: businessOf(settings, loginCode), workplaces };
 }
 
-/** 지금 로그인한 사업주와 관리 중인 사업장 (브라우저 값을 읽기 전에는 null) */
+/** 지금 로그인한 사업주와 내 사업장 목록 (브라우저 값을 읽기 전에는 null) */
 export function useOwner(): Owner | null {
   const login = ownerStore.use();
   const accounts = accountStore.use();
@@ -248,11 +230,6 @@ export function useOwner(): Owner | null {
   const added = newCompanyStore.use();
   if (login === null || accounts === null || settings === null || added === null) return null;
   return ownerOf(login, accounts, settings);
-}
-
-/** 급여대장 매칭용 내 사업장 목록: 지금 관리 중인 사업장을 맨 앞에 둔다(어느 사업장인지 못 고르면 이 사업장으로 본다) */
-export function matchOrder(owner: Owner): JaberCompany[] {
-  return [owner.company, ...owner.workplaces.filter((c) => c.code !== owner.code)];
 }
 
 /** 화면 밖(업로드 처리 등)에서 내 사업장 정보 읽기 */
