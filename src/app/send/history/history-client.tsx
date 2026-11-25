@@ -1,5 +1,5 @@
 "use client";
-// 발송 관리: 발송(시연) 기록과 열람 기록을 사업장·귀속월별로 모아 본다. 보내는 일은 급여명세서 > 4. 발송에서 한다.
+// 발송 관리 > 발송 결과·재발송: 발송(시연) 기록과 열람 기록을 사업장·귀속월별로 모아 보고, 보낸 곳으로 다시 보낸다. 처음 보내는 일은 '발송하기'에서 한다.
 // 기록은 send-store(sessionStorage)에 있어서 지금은 같은 브라우저 탭 안에서만 남는다.
 import Link from "next/link";
 import { useState } from "react";
@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { periodText, useReviewed } from "@/app/payslips/use-reviewed";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
 import { CHANNEL_LABEL, maskEmail, maskPhone, type Channel } from "../channels";
-import { useSendState } from "../send-store";
+import { recordSent, useSendState } from "../send-store";
 
 const CHANNELS: Channel[] = ["kakao", "mail"];
 
@@ -27,6 +27,8 @@ type Row = {
   batch: PayrollBatch;
   e: EmployeePay;
   sent: Partial<Record<Channel, string>>;
+  /** 채널별 보낸 횟수 */
+  counts: Partial<Record<Channel, number>>;
   firstSent?: string;
   opened?: string;
 };
@@ -51,13 +53,14 @@ export function HistoryClient() {
   const reviewed = useReviewed();
   const sendState = useSendState();
   const [filter, setFilter] = useState<Filter>("all");
+  const [resending, setResending] = useState(false);
 
   if (reviewed.status === "loading") return <p className="text-muted-foreground">불러오는 중…</p>;
   if (reviewed.status !== "ready") {
     return (
       <Guide
         title="아직 보낸 명세서가 없어요"
-        text="급여명세서에서 급여대장을 올리고 발송하면, 여기서 받은 사람과 열람 여부를 볼 수 있어요."
+        text="급여명세서를 작성해 발송하면, 여기서 받은 사람과 열람 여부를 볼 수 있어요."
         href="/upload"
         button="급여명세서 만들러 가기"
       />
@@ -75,18 +78,34 @@ export function HistoryClient() {
       .filter((e) => issuable.has(e.id))
       .map((e) => {
         const sent: Row["sent"] = {};
+        const counts: Row["counts"] = {};
         for (const c of CHANNELS) {
-          const at = records[e.id]?.[c]?.at;
-          if (at) sent[c] = at;
+          const rec = records[e.id]?.[c];
+          if (rec) {
+            sent[c] = rec.at;
+            counts[c] = rec.count ?? 1;
+          }
         }
         const times = Object.values(sent).sort();
-        return { batch, e, sent, firstSent: times[0], opened: opens[e.id]?.at };
+        return { batch, e, sent, counts, firstSent: times[0], opened: opens[e.id]?.at };
       }),
   );
   const sentRows = rows.filter((r) => r.firstSent);
   const openedRows = sentRows.filter((r) => r.opened);
   const shown = rows.filter((r) => (filter === "unopened" ? r.firstSent && !r.opened : filter === "unsent" ? !r.firstSent : true));
   const countOf = (f: Filter) => (f === "unopened" ? sentRows.length - openedRows.length : f === "unsent" ? rows.length - sentRows.length : rows.length);
+  const unopenedRows = sentRows.filter((r) => !r.opened);
+
+  /** 이미 보낸 채널로 다시 보낸다 (시연: 실제 발송 대신 잠깐 기다렸다가 기록한다) */
+  function resend(targets: Row[]) {
+    const items = targets.flatMap((r) => CHANNELS.filter((c) => r.sent[c]).map((c) => ({ employeeId: r.e.id, channel: c })));
+    if (items.length === 0 || resending) return;
+    setResending(true);
+    setTimeout(() => {
+      recordSent(signature, items);
+      setResending(false);
+    }, 700);
+  }
   const rate = sentRows.length ? Math.round((openedRows.length / sentRows.length) * 100) : 0;
 
   return (
@@ -100,8 +119,15 @@ export function HistoryClient() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">직원별 현황</CardTitle>
-          <CardDescription>열람 시각은 직원이 명세서 링크를 처음 연 때예요. 담당자가 미리보기로 연 것은 세지 않아요.</CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-1.5">
+              <CardTitle className="text-lg">직원별 발송 결과</CardTitle>
+              <CardDescription>열람 시각은 직원이 명세서 링크를 처음 연 때예요. 담당자가 미리보기로 연 것은 세지 않아요. 재발송은 이미 보낸 곳(알림톡·메일)으로 다시 보내요.</CardDescription>
+            </div>
+            <Button size="sm" disabled={unopenedRows.length === 0 || resending} onClick={() => resend(unopenedRows)}>
+              {resending ? "재발송 중…" : `미열람 ${unopenedRows.length}명 재발송 (시연)`}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div role="tablist" aria-label="현황 거르기" className="flex flex-wrap gap-2">
@@ -112,7 +138,7 @@ export function HistoryClient() {
             ))}
           </div>
           <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full min-w-[760px] text-sm">
+            <table className="w-full min-w-[860px] text-sm">
               <thead className="bg-neutral-50 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">사업장 · 귀속월</th>
@@ -124,10 +150,13 @@ export function HistoryClient() {
                     </th>
                   ))}
                   <th className="px-3 py-2 font-medium">열람</th>
+                  <th className="px-3 py-2 font-medium">재발송</th>
                 </tr>
               </thead>
               <tbody>
-                {shown.map(({ batch, e, sent, firstSent, opened }) => (
+                {shown.map((row) => {
+                  const { batch, e, sent, counts, firstSent, opened } = row;
+                  return (
                   <tr key={e.id} className="border-t">
                     <td className="px-3 py-2 text-muted-foreground">
                       {batch.companyName} · {periodText(batch.payPeriod)}
@@ -138,7 +167,14 @@ export function HistoryClient() {
                     </td>
                     {CHANNELS.map((c) => (
                       <td key={c} className="px-3 py-2 tabular-nums">
-                        {sent[c] ? fmtTime(sent[c]!) : <span className="text-muted-foreground">-</span>}
+                        {sent[c] ? (
+                          <>
+                            {fmtTime(sent[c]!)}
+                            {(counts[c] ?? 1) > 1 && <span className="ml-1 text-xs text-muted-foreground">({counts[c]}회)</span>}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </td>
                     ))}
                     <td className="px-3 py-2 whitespace-nowrap">
@@ -150,11 +186,17 @@ export function HistoryClient() {
                         <span className="text-muted-foreground">미발송</span>
                       )}
                     </td>
+                    <td className="px-3 py-2">
+                      <Button size="sm" variant="outline" disabled={!firstSent || resending} onClick={() => resend([row])}>
+                        재발송
+                      </Button>
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {shown.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
                       해당하는 직원이 없어요.
                     </td>
                   </tr>
@@ -168,7 +210,7 @@ export function HistoryClient() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <p className="text-xs text-muted-foreground">시연이라 기록은 이 브라우저 탭 안에서만 남아요. 다른 기기의 열람까지 보려면 저장소(Supabase) 연결이 필요해요.</p>
         <Button asChild>
-          <Link href="/send">급여명세서 발송하러 가기 →</Link>
+          <Link href="/send">명세서 발송하러 가기 →</Link>
         </Button>
       </div>
     </div>

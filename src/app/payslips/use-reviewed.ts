@@ -1,5 +1,5 @@
 "use client";
-// 4단계 화면(/payslips, /p/[id])이 쓰는 데이터 읽기.
+// 명세서 화면(/payslips, /p/[id])이 쓰는 데이터 읽기.
 // 3단계에서 담당자가 확인·수정한 결과(src/app/review/review-store.ts)를 읽는다.
 // 지금은 같은 브라우저 탭(sessionStorage) 안에서만 읽을 수 있다. 다른 기기에서 열리게 하려면 저장소(Supabase)가 필요하다.
 import { useSyncExternalStore } from "react";

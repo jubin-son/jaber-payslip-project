@@ -1,5 +1,5 @@
 "use client";
-// 5단계: 발송 화면 (시연 수준). 오류가 없는 직원이 대상이 된다.
+// 발송 관리 > 발송하기: 발송 화면 (시연 수준). 오류가 없는 직원이 대상이 된다.
 // 실제로 알림톡·메일을 보내지는 않고, '보낸 것으로 기록'만 남긴다.
 import Link from "next/link";
 import { useState } from "react";
@@ -259,7 +259,7 @@ export function SendClient() {
       {/* 발송 */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <Button variant="outline" asChild>
-          <Link href="/payslips">← 직원별 명세서</Link>
+          <Link href="/payslips">← 명세서 변환</Link>
         </Button>
         <div className="flex flex-wrap items-center gap-3">
           {alreadySent > 0 && (
@@ -270,6 +270,9 @@ export function SendClient() {
               </Button>
             </>
           )}
+          <Button variant="outline" asChild>
+            <Link href="/send/history">발송 결과 보기</Link>
+          </Button>
           <Button disabled={toSend.length === 0 || sending} onClick={send}>
             {sending ? "발송 중…" : toSend.length > 0 ? `${toSend.length}건 발송하기 (시연)` : "보낼 대상이 없어요"}
           </Button>

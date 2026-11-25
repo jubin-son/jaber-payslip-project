@@ -7,9 +7,9 @@ import { jaberCompanies } from "@/lib/jaber-db";
 import { ownerStore, useOwner } from "@/lib/hr-store";
 import { STEPS, stepOf } from "./site-header";
 
-// 사업주 화면 왼쪽 메뉴. 맨 위에 내 사업장, 아래로 상위 메뉴 4개(기본 관리·임직원 관리·급여명세서·발송 관리).
-// 급여명세서 아래에는 만드는 순서대로 업로드 → 확인·수정 → 명세서 → 발송 단계를 둔다.
-type Item = { href: string; label: string; on: (pathname: string) => boolean; children?: Item[] };
+// 사업주 화면 왼쪽 메뉴. 맨 위에 내 사업장, 아래로 상위 메뉴 5개(기본 관리·임직원 관리·급여명세서 작성·급여명세서 관리·발송 관리).
+// 급여명세서 작성 아래에는 업로드 → 확인·수정 → 명세서 변환 단계를, 발송 관리 아래에는 발송하기·발송 결과를 둔다.
+type Item = { href: string; label: string; on: (pathname: string) => boolean; children?: Item[]; numbered?: boolean };
 
 const under = (...prefixes: string[]) => (p: string) => prefixes.some((x) => p === x || p.startsWith(`${x}/`));
 
@@ -18,11 +18,21 @@ const MENU: Item[] = [
   { href: "/employees", label: "임직원 관리", on: under("/employees") },
   {
     href: "/upload",
-    label: "급여명세서",
+    label: "급여명세서 작성",
     on: (p) => stepOf(p) !== undefined,
+    numbered: true,
     children: STEPS.map((s) => ({ href: s.href, label: s.label, on: (p: string) => stepOf(p)?.href === s.href })),
   },
-  { href: "/send/history", label: "발송 관리", on: under("/send/history") },
+  { href: "/records", label: "급여명세서 관리", on: under("/records") },
+  {
+    href: "/send",
+    label: "발송 관리",
+    on: under("/send"),
+    children: [
+      { href: "/send", label: "발송하기", on: (p: string) => p === "/send" },
+      { href: "/send/history", label: "발송 결과·재발송", on: under("/send/history") },
+    ],
+  },
 ];
 
 export function AdminSidebar() {
@@ -63,13 +73,15 @@ export function AdminSidebar() {
                               cOn ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
                             }`}
                           >
-                            <span
-                              className={`flex size-4 items-center justify-center rounded-full text-[10px] ${
-                                cOn ? "bg-white text-neutral-900" : "bg-neutral-100 text-neutral-500"
-                              }`}
-                            >
-                              {i + 1}
-                            </span>
+                            {it.numbered && (
+                              <span
+                                className={`flex size-4 items-center justify-center rounded-full text-[10px] ${
+                                  cOn ? "bg-white text-neutral-900" : "bg-neutral-100 text-neutral-500"
+                                }`}
+                              >
+                                {i + 1}
+                              </span>
+                            )}
                             {c.label}
                           </Link>
                         </li>
@@ -83,7 +95,7 @@ export function AdminSidebar() {
         </ul>
         <OwnerSwitch />
       </div>
-      {/* 좁은 화면: 위쪽 가로 메뉴 (급여명세서 단계는 상단 바의 단계 이동에 나온다) */}
+      {/* 좁은 화면: 위쪽 가로 메뉴 (작성 단계는 상단 바의 단계 이동에 나온다) */}
       <div className="flex gap-1 overflow-x-auto border-b border-neutral-100 bg-white px-4 py-2 lg:hidden">
         {MENU.map((it) => (
           <Link

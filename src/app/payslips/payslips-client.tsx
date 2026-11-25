@@ -1,7 +1,7 @@
 "use client";
-// 4단계: 직원별 급여명세서 목록 + 미리보기.
+// 3단계: 명세서 변환 결과(직원별 목록 + 미리보기). 변환된 명세서는 급여명세서 관리(월별 기록)에 저장한다.
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { rosterStore, settingsStore } from "@/lib/hr-store";
 import { statementNotes, type StatementContext } from "@/lib/wage-statement";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
 import { identityParts, periodText, useReviewed, won } from "./use-reviewed";
+import { archiveBatches } from "@/lib/archive-store";
 
 function Guide({ title, text, href, button }: { title: string; text: string; href: string; button: string }) {
   return (
@@ -69,6 +70,12 @@ function StatementNotes({ employee, ctx }: { employee: EmployeePay; ctx: Stateme
 
 export function PayslipsClient() {
   const reviewed = useReviewed();
+  // 변환된 명세서를 월별 기록에 저장한다 (같은 사업장·귀속월이면 최신 내용으로 덮어쓴다)
+  const readyBatches = reviewed.status === "ready" ? reviewed.batches : null;
+  const readyIssuable = reviewed.status === "ready" ? reviewed.issuable : null;
+  useEffect(() => {
+    if (readyBatches && readyIssuable) archiveBatches(readyBatches, readyIssuable);
+  }, [readyBatches, readyIssuable]);
   const [batchIdx, setBatchIdx] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -210,9 +217,14 @@ export function PayslipsClient() {
         <Button variant="outline" asChild>
           <Link href="/review">← 담당자 확인·수정</Link>
         </Button>
-        <Button asChild>
-          <Link href="/send">다음: 발송 →</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/records">급여명세서 관리</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/send">발송 관리로 →</Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

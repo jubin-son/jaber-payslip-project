@@ -1,10 +1,11 @@
 "use client";
-// 5단계 발송 결과 저장소. 시연용이라 실제로 보내지는 않고, '보낸 것으로 기록'만 브라우저 탭(sessionStorage)에 둔다.
+// 발송 결과 저장소. 시연용이라 실제로 보내지는 않고, '보낸 것으로 기록'만 브라우저 탭(sessionStorage)에 둔다.
 // 다른 페이지에 갔다 와도 남고, 탭을 닫으면 사라진다. 다른 파일을 올리면(signature가 달라지면) 비운다.
 import { useSyncExternalStore } from "react";
 import type { Channel } from "./channels";
 
-export type SendRecord = { at: string };
+/** at: 마지막으로 보낸 시각, count: 보낸 횟수(재발송하면 늘어난다. 없으면 1회) */
+export type SendRecord = { at: string; count?: number };
 
 /** 직원이 명세서 링크를 처음 연 시각 */
 export type OpenRecord = { at: string };
@@ -64,12 +65,13 @@ function base(signature: string): SendState {
     : { signature, records: {}, opens: {} };
 }
 
-/** 보낸 것으로 기록한다 (시연) */
+/** 보낸 것으로 기록한다 (시연). 이미 보낸 곳에 다시 보내면(재발송) 시각을 새로 쓰고 횟수를 늘린다 */
 export function recordSent(signature: string, items: { employeeId: string; channel: Channel }[]) {
   const next = base(signature);
   const at = new Date().toISOString();
   for (const { employeeId, channel } of items) {
-    next.records[employeeId] = { ...next.records[employeeId], [channel]: { at } };
+    const prev = next.records[employeeId]?.[channel];
+    next.records[employeeId] = { ...next.records[employeeId], [channel]: { at, count: prev ? (prev.count ?? 1) + 1 : 1 } };
   }
   commit(next);
 }
