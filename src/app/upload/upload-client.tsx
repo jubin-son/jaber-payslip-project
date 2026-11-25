@@ -6,7 +6,7 @@ import { AlertCircle, ArrowRight, Loader2, CheckCircle2, FileQuestion, FileSprea
 import { detectKind, readFile, type RawFile } from "@/lib/parser/read-file";
 import { extractFiles } from "@/lib/parser/extract";
 import { saveParseResult } from "@/lib/store";
-import { getOwner, rosterStore } from "@/lib/hr-store";
+import { getOwner, matchOrder, rosterStore } from "@/lib/hr-store";
 import { setCustomLinks } from "@/lib/parser/dictionary";
 import { Button } from "@/components/ui/button";
 
@@ -118,13 +118,14 @@ export function UploadClient() {
     // 팝업이 화면에 한 번 그려진 다음에 계산을 시작한다(두 프레임만 기다리고, 고정 대기 시간은 두지 않는다)
     await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     try {
-      // 내 사업장(로그인한 사업주)의 '엑셀 항목 연결'과 임직원 명부로 정리·매칭한다
+      // 지금 관리 중인 사업장의 '엑셀 항목 연결'과 임직원 명부로 정리·매칭한다.
+      // 사업장이 여러 곳이면 파일(표)마다 상호를 보고 내 사업장 중 맞는 곳으로 나눈다
       const owner = getOwner();
       setCustomLinks(owner?.business.itemLinks ?? []);
       const result = extractFiles(
         done.map((i) => i.file!),
         rosterStore.get(),
-        owner?.company,
+        owner ? matchOrder(owner) : undefined,
       );
       if (result.batches.length === 0) {
         setConverting(false);

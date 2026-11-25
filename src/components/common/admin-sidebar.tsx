@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Store } from "lucide-react";
 import { jaberCompanies } from "@/lib/jaber-db";
-import { ownerStore, useOwner } from "@/lib/hr-store";
+import { ownerStore, selectWorkplace, useOwner } from "@/lib/hr-store";
 import { STEPS, stepOf } from "./site-header";
 
 // 사업주 화면 왼쪽 메뉴. 맨 위에 내 사업장, 아래로 상위 메뉴 4개(기본 관리·임직원 관리·급여명세서·발송 관리).
@@ -102,9 +102,31 @@ export function AdminSidebar() {
   );
 }
 
-/** 로그인한 사업주의 사업장 이름 */
+/** 지금 관리 중인 사업장. 사업장이 여러 곳이면 여기서 바로 바꾼다 */
 function MyBusiness() {
   const owner = useOwner();
+  if (owner && owner.workplaces.length > 1) {
+    return (
+      <label className="flex items-center gap-2 rounded-xl bg-neutral-50 px-3 py-2.5">
+        <Store className="size-4 shrink-0 text-neutral-500" />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[11px] text-muted-foreground">관리 중인 사업장 ({owner.workplaces.length}곳)</span>
+          <select
+            aria-label="관리할 사업장"
+            value={owner.code}
+            onChange={(e) => selectWorkplace(e.target.value)}
+            className="-ml-1 w-full min-w-0 truncate bg-transparent text-sm font-bold"
+          >
+            {owner.workplaces.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </span>
+      </label>
+    );
+  }
   return (
     <Link href="/settings" className="flex items-center gap-2 rounded-xl bg-neutral-50 px-3 py-2.5 hover:bg-neutral-100">
       <Store className="size-4 shrink-0 text-neutral-500" />
@@ -124,7 +146,7 @@ function OwnerSwitch() {
     <label className="mt-auto flex flex-col gap-1 rounded-xl border border-dashed border-neutral-300 p-2 text-[11px] text-muted-foreground">
       테스트: 로그인한 사업주
       <select
-        value={owner.code}
+        value={owner.login}
         onChange={(e) => ownerStore.set(() => e.target.value)}
         className="rounded-md border bg-white px-1.5 py-1 text-xs text-foreground"
       >
