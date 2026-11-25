@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { periodText, useReviewed } from "@/app/payslips/use-reviewed";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
-import { CHANNEL_LABEL, maskEmail, maskPhone, type Channel } from "../channels";
+import { CHANNEL_LABEL, maskEmail, maskPhone, unsentReason, type Channel } from "../channels";
 import { recordSent, useSendState } from "../send-store";
 
 const CHANNELS: Channel[] = ["kakao", "mail"];
@@ -161,7 +161,10 @@ export function HistoryClient() {
                     <td className="px-3 py-2 text-muted-foreground">
                       {batch.companyName} · {periodText(batch.payPeriod)}
                     </td>
-                    <td className="px-3 py-2 font-medium">{e.name}</td>
+                    <td className="px-3 py-2 font-medium">
+                      {e.name}
+                      {!firstSent && <Unsent e={e} />}
+                    </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {e.match?.status === "matched" ? `${maskPhone(e.match.phone)} · ${maskEmail(e.match.email)}` : "연락처 없음"}
                     </td>
@@ -213,6 +216,29 @@ export function HistoryClient() {
           <Link href="/send">명세서 발송하러 가기 →</Link>
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** 미발송 사유와, 연락처가 없을 때 추가하러 가는 안내 */
+function Unsent({ e }: { e: EmployeePay }) {
+  const r = unsentReason(e);
+  return (
+    <div className="mt-1 flex min-w-[220px] flex-col gap-0.5 rounded-md bg-amber-50 px-2 py-1.5 text-xs font-normal text-amber-900">
+      <span className="font-medium">미발송 사유</span>
+      {r.reasons.map((x) => (
+        <span key={x}>· {x}</span>
+      ))}
+      {r.guide && (
+        <span className="text-amber-800">
+          {r.guide}{" "}
+          {r.fixHref && (
+            <Link href={r.fixHref} className="font-semibold underline underline-offset-2">
+              {r.fixHref === "/send" ? "발송하러 가기" : "임직원 관리로 가기"}
+            </Link>
+          )}
+        </span>
+      )}
     </div>
   );
 }

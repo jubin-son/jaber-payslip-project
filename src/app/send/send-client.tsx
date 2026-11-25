@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { dateText, periodText, useReviewed } from "@/app/payslips/use-reviewed";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
-import { availability, CHANNEL_LABEL, defaultPick, maskEmail, maskPhone, type Channel, type Pick } from "./channels";
+import { availability, CHANNEL_LABEL, defaultPick, maskEmail, maskPhone, unsentReason, type Channel, type Pick } from "./channels";
 import { clearSent, recordSent, useSendState } from "./send-store";
 
 const CHANNELS: Channel[] = ["kakao", "mail"];
@@ -239,6 +239,15 @@ export function SendClient() {
                       );
                     })}
                   </div>
+
+                  {!CHANNELS.some((c) => sentAt(e, c)) && !availability(e, "kakao").ok && !availability(e, "mail").ok && (
+                    <p className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                      보낼 수 없어요. {unsentReason(e).guide}{" "}
+                      <Link href="/employees" className="font-semibold underline underline-offset-2">
+                        임직원 관리로 가기
+                      </Link>
+                    </p>
+                  )}
 
                   {CHANNELS.some((c) => sentAt(e, c)) &&
                     (opens[e.id] ? (

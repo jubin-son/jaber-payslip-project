@@ -51,3 +51,39 @@ export function maskEmail(m?: string): string {
   if (!host) return m;
   return `${id.slice(0, 2)}${"*".repeat(Math.max(id.length - 2, 1))}@${host}`;
 }
+
+export type UnsentReason = {
+  /** 왜 못 보냈는지 (알림톡·메일 각각) */
+  reasons: string[];
+  /** 담당자가 할 일 안내. 보낼 수 있는 상태면 비어 있다 */
+  guide?: string;
+  /** 고치러 가는 화면 */
+  fixHref?: string;
+};
+
+/** 아직 한 곳도 못 보낸 직원의 미발송 사유와 안내 */
+export function unsentReason(e: EmployeePay): UnsentReason {
+  const kakao = availability(e, "kakao");
+  const mail = availability(e, "mail");
+  if (kakao.ok || mail.ok) {
+    return { reasons: ["아직 발송하지 않았어요"], guide: "‘발송하기’에서 보낼 곳을 고르고 발송해 주세요.", fixHref: "/send" };
+  }
+  const problem = matchProblem(e);
+  if (problem) {
+    return {
+      reasons: [problem],
+      guide: "임직원 관리에서 이 직원을 등록하거나 이름·생년월일을 확인하면 연락처가 이어져요.",
+      fixHref: "/employees",
+    };
+  }
+  const reasons = [`알림톡: ${kakao.ok ? "" : kakao.reason}`, `메일: ${mail.ok ? "" : mail.reason}`];
+  const m = e.match!;
+  const todo: string[] = [];
+  if (!m.phone) todo.push("전화번호");
+  if (!m.email) todo.push("메일 주소");
+  const guide =
+    todo.length > 0
+      ? `임직원 관리에서 ${todo.join("·")}를 추가해 주세요.${m.phone && m.kakaoConsent !== true ? " (알림톡은 수신동의도 필요해요)" : ""}`
+      : "알림톡 수신동의를 받거나 임직원 관리에서 메일 주소를 추가해 주세요.";
+  return { reasons, guide, fixHref: "/employees" };
+}
