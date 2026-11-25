@@ -26,7 +26,7 @@ export function availability(e: EmployeePay, channel: Channel): Availability {
     if (m.kakaoConsent === undefined) return { ok: false, reason: "알림톡 수신동의 정보가 없어요" };
     return { ok: true };
   }
-  if (!m.email) return { ok: false, reason: "메일 주소가 없어요" };
+  if (!m.email) return { ok: false, reason: "메일 주소가 없어요 (임직원 관리에서 추가)" };
   return { ok: true };
 }
 

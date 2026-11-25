@@ -53,6 +53,11 @@ function incomeFrom(v: unknown): IncomeType | undefined {
   return undefined;
 }
 
+/** 메일 주소 모양 확인 (이름@도메인.xxx). 실제로 받는 주소인지까지는 알 수 없다 */
+function isEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
 function cellText(v: unknown): string {
   if (v instanceof Date) return v.toLocaleDateString("sv-SE");
   return String(v ?? "").trim();
@@ -110,6 +115,11 @@ function readRows(fileName: string, buf: ArrayBuffer, roster: JaberEmployee[], o
       rows.push({ line: r + 1, raw, problem: `소득구분 '${incomeText}'을(를) 읽지 못했어요 (근로소득·사업소득)` });
       continue;
     }
+    const emailText = cellText(get("email"));
+    if (emailText && !isEmail(emailText)) {
+      rows.push({ line: r + 1, raw, problem: `이메일 '${emailText}'의 형식이 올바르지 않아요` });
+      continue;
+    }
     const draft: Draft = {
       companyCode: own.code,
       companyName: own.name,
@@ -118,7 +128,7 @@ function readRows(fileName: string, buf: ArrayBuffer, roster: JaberEmployee[], o
       incomeType,
       phone: cellText(get("phone")) || undefined,
       address: cellText(get("address")) || undefined,
-      email: cellText(get("email")) || undefined,
+      email: emailText || undefined,
       kakaoConsent: yes(get("kakaoConsent")),
     };
     if (isDuplicate(roster, draft) || isDuplicate(seen as JaberEmployee[], draft)) {
@@ -196,7 +206,7 @@ export function EmployeesClient() {
         <CardHeader>
           <CardTitle className="text-lg">① 직원 등록</CardTitle>
           <CardDescription>
-            {own.name} 직원을 엑셀 양식으로 한 번에 올리거나, 한 명씩 직접 입력해요. 이름 · 생년월일 · 전화번호 · 주소 · 알림톡 수신동의 · 소득 구분을 받아요.
+            {own.name} 직원을 엑셀 양식으로 한 번에 올리거나, 한 명씩 직접 입력해요. 이름 · 생년월일 · 전화번호 · 이메일 · 주소 · 알림톡 수신동의 · 소득 구분을 받아요. 이메일을 적어 두면 명세서를 메일로도 보낼 수 있어요.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -223,13 +233,13 @@ export function EmployeesClient() {
 
 function downloadTemplate() {
   const ws = XLSX.utils.aoa_to_sheet([
-    ["이름", "생년월일", "전화번호", "주소", "알림톡 수신동의", "소득구분"],
-    ["홍길동", "1995-03-12", "010-0000-0000", "서울특별시 마포구 와우산로 00", "Y", "근로소득"],
-    ["김강사", "1988-07-01", "010-0000-0001", "서울특별시 마포구 와우산로 01", "Y", "사업소득"],
+    ["이름", "생년월일", "전화번호", "이메일", "주소", "알림톡 수신동의", "소득구분"],
+    ["홍길동", "1995-03-12", "010-0000-0000", "hong@example.com", "서울특별시 마포구 와우산로 00", "Y", "근로소득"],
+    ["김강사", "1988-07-01", "010-0000-0001", "kim@example.com", "서울특별시 마포구 와우산로 01", "Y", "사업소득"],
   ]);
-  ws["!cols"] = [{ wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 32 }, { wch: 14 }, { wch: 12 }];
+  ws["!cols"] = [{ wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 24 }, { wch: 32 }, { wch: 14 }, { wch: 12 }];
   // 소득구분 칸 안내 (비워 두면 근로소득)
-  ws["F1"].c = [{ a: "자버", t: "근로소득: 4대보험·근로소득세를 떼는 직원\n사업소득: 3.3%를 떼는 프리랜서·강사\n비워 두면 근로소득으로 등록돼요" }];
+  ws["G1"].c = [{ a: "자버", t: "근로소득: 4대보험·근로소득세를 떼는 직원\n사업소득: 3.3%를 떼는 프리랜서·강사\n비워 두면 근로소득으로 등록돼요" }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "직원목록");
   XLSX.writeFile(wb, "자버_임직원_등록양식.xlsx");
@@ -312,9 +322,11 @@ function ManualForm({ roster, own, onDone, onCancel }: { roster: JaberEmployee[]
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [consent, setConsent] = useState(true);
   const [incomeType, setIncomeType] = useState<IncomeType>("근로소득");
+  const emailBad = email.trim() !== "" && !isEmail(email.trim());
   const draft: Draft | null = name.trim()
     ? {
         companyCode: own.code,
@@ -323,6 +335,7 @@ function ManualForm({ roster, own, onDone, onCancel }: { roster: JaberEmployee[]
         birthDate: birthDate || undefined,
         incomeType,
         phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
         address: address.trim() || undefined,
         kakaoConsent: consent,
       }
@@ -336,7 +349,7 @@ function ManualForm({ roster, own, onDone, onCancel }: { roster: JaberEmployee[]
       className="grid gap-3 rounded-xl border border-dashed p-4 sm:grid-cols-2"
       onSubmit={(e) => {
         e.preventDefault();
-        if (draft && !dup) onDone(register([draft]));
+        if (draft && !dup && !emailBad) onDone(register([draft]));
       }}
     >
       <label className={field}>
@@ -350,6 +363,11 @@ function ManualForm({ roster, own, onDone, onCancel }: { roster: JaberEmployee[]
       <label className={field}>
         <span className="font-medium">전화번호</span>
         <input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" className={box} />
+      </label>
+      <label className={field}>
+        <span className="font-medium">이메일 (메일 발송용)</span>
+        <input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="hong@example.com" className={box} />
+        {emailBad && <span className="text-xs text-amber-800">이메일 형식이 올바르지 않아요.</span>}
       </label>
       <label className={field}>
         <span className="font-medium">소득 구분</span>
@@ -368,7 +386,7 @@ function ManualForm({ roster, own, onDone, onCancel }: { roster: JaberEmployee[]
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           취소
         </Button>
-        <Button type="submit" size="sm" disabled={!draft || dup}>
+        <Button type="submit" size="sm" disabled={!draft || dup || emailBad}>
           등록
         </Button>
       </div>
@@ -389,7 +407,7 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
     const key = normName(q);
     const digits = q.replace(/\D/g, "");
     return mine
-      .filter((e) => !key || normName(e.name).includes(key) || (!!digits && (e.phone ?? "").replace(/\D/g, "").includes(digits)))
+      .filter((e) => !key || normName(e.name).includes(key) || (!!digits && (e.phone ?? "").replace(/\D/g, "").includes(digits)) || (e.email ?? "").toLowerCase().includes(q.trim().toLowerCase()))
       .sort((a, b) => b.memberId.localeCompare(a.memberId));
   }, [mine, q]);
 
@@ -439,7 +457,7 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <input aria-label="이름·전화번호 검색" placeholder="이름·전화번호 검색" value={q} onChange={(e) => setQ(e.target.value)} className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-sm sm:max-w-60" />
+          <input aria-label="이름·전화번호·이메일 검색" placeholder="이름·전화번호·이메일 검색" value={q} onChange={(e) => setQ(e.target.value)} className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-sm sm:max-w-60" />
           <span className="text-sm text-muted-foreground">{rows.length}명</span>
           <Button variant="outline" size="sm" className="ml-auto" disabled={visiblePicked.length === 0} onClick={removePicked}>
             <Trash2 className="size-4" /> 선택 삭제{visiblePicked.length > 0 ? ` ${visiblePicked.length}명` : ""}
@@ -449,7 +467,7 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
           </Button>
         </div>
         <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full min-w-[780px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead className="bg-neutral-50 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="w-10 px-3 py-2">
@@ -468,6 +486,7 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
                 <th className="px-3 py-2 font-medium">이름</th>
                 <th className="px-3 py-2 font-medium">생년월일</th>
                 <th className="px-3 py-2 font-medium">전화번호</th>
+                <th className="px-3 py-2 font-medium">이메일</th>
                 <th className="px-3 py-2 font-medium">주소</th>
                 <th className="px-3 py-2 font-medium">소득 구분</th>
                 <th className="px-3 py-2 font-medium">알림톡</th>
@@ -497,6 +516,7 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
                   </td>
                   <td className="px-3 py-2 tabular-nums">{e.birthDate ?? <span className="text-muted-foreground">-</span>}</td>
                   <td className="px-3 py-2 tabular-nums">{e.phone ?? <span className="text-muted-foreground">-</span>}</td>
+                  <td className="px-3 py-2 break-all">{e.email ?? <span className="text-muted-foreground">-</span>}</td>
                   <td className="max-w-56 truncate px-3 py-2" title={e.address}>
                     {e.address ?? <span className="text-muted-foreground">-</span>}
                   </td>
@@ -521,7 +541,7 @@ function RosterList({ roster, own, fresh }: { roster: JaberEmployee[]; own: Jabe
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
+                  <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">
                     조건에 맞는 직원이 없어요.
                   </td>
                 </tr>
@@ -540,6 +560,7 @@ function EditDialog({ e, roster, onClose }: { e: JaberEmployee; roster: JaberEmp
   const [name, setName] = useState(e.name);
   const [birthDate, setBirthDate] = useState(e.birthDate ?? "");
   const [phone, setPhone] = useState(e.phone ?? "");
+  const [email, setEmail] = useState(e.email ?? "");
   const [address, setAddress] = useState(e.address ?? "");
   const [consent, setConsent] = useState(e.kakaoConsent);
   const [incomeType, setIncomeType] = useState<IncomeType>(e.incomeType ?? "근로소득");
@@ -552,15 +573,16 @@ function EditDialog({ e, roster, onClose }: { e: JaberEmployee; roster: JaberEmp
         incomeType,
         phone: phone.trim() || undefined,
         address: address.trim() || undefined,
-        email: e.email,
+        email: email.trim() || undefined,
         kakaoConsent: consent,
       }
     : null;
   // 자기 자신은 빼고 중복을 본다
+  const emailBad = email.trim() !== "" && !isEmail(email.trim());
   const dup = draft ? isDuplicate(roster.filter((x) => x.memberId !== e.memberId), draft) : false;
 
   function save() {
-    if (!draft || dup) return;
+    if (!draft || dup || emailBad) return;
     rosterStore.set((prev) => prev.map((x) => (x.memberId === e.memberId ? { ...x, ...draft } : x)));
     onClose();
   }
@@ -595,6 +617,11 @@ function EditDialog({ e, roster, onClose }: { e: JaberEmployee; roster: JaberEmp
               <input inputMode="tel" value={phone} onChange={(ev) => setPhone(ev.target.value)} className={box} />
             </label>
             <label className={field}>
+              이메일 (메일 발송용)
+              <input type="email" inputMode="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="hong@example.com" className={box} />
+              {emailBad && <span className="text-xs font-normal text-amber-800">이메일 형식이 올바르지 않아요.</span>}
+            </label>
+            <label className={field}>
               소득 구분
               <IncomeSelect value={incomeType} onChange={setIncomeType} className={box} />
             </label>
@@ -613,7 +640,7 @@ function EditDialog({ e, roster, onClose }: { e: JaberEmployee; roster: JaberEmp
               <Button size="sm" variant="ghost" onClick={onClose}>
                 취소
               </Button>
-              <Button size="sm" onClick={save} disabled={!draft || dup}>
+              <Button size="sm" onClick={save} disabled={!draft || dup || emailBad}>
                 저장
               </Button>
             </span>
