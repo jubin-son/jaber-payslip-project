@@ -37,9 +37,9 @@ export function RecordsClient() {
     );
   }
 
-  // 귀속월 목록(최신 순)
-  const months = [...new Set(archive.map((a) => a.batch.payPeriod))].sort().reverse();
-  const curMonth = month && months.includes(month) ? month : months[0];
+  // 귀속월 목록(1월이 위, 12월이 아래). 처음에는 가장 최근 달을 연다
+  const months = [...new Set(archive.map((a) => a.batch.payPeriod))].sort();
+  const curMonth = month && months.includes(month) ? month : months[months.length - 1];
   const inMonth = archive.filter((a) => a.batch.payPeriod === curMonth);
   const cur: ArchivedPayslips = inMonth.find((a) => a.key === key) ?? inMonth[0];
   const keyword = q.trim();
