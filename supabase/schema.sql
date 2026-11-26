@@ -15,3 +15,6 @@ create table if not exists public.shared_payslips (
 -- 브라우저용 공개 키(anon)로는 아무것도 읽고 쓸 수 없게 막는다.
 -- 앱 서버(Next.js API)만 비밀 키로 접근한다.
 alter table public.shared_payslips enable row level security;
+
+-- 앱 서버의 비밀 키(service_role)에 읽기·쓰기 권한을 준다. 새 프로젝트는 자동으로 주지 않는다
+grant select, insert, update on public.shared_payslips to service_role;
