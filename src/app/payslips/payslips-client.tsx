@@ -178,12 +178,6 @@ export function PayslipsClient() {
                         명세서 열기
                       </Link>
                     </Button>
-                    {/* 새 탭에서 명세서를 열고 PDF 저장 창을 바로 띄운다 */}
-                    <Button size="sm" variant="ghost" asChild>
-                      <a href={`/p/${e.id}?preview=1&print=1`} target="_blank" rel="noreferrer">
-                        PDF 저장
-                      </a>
-                    </Button>
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">오류를 고치면 명세서가 만들어져요.</p>
