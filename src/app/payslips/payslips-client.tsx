@@ -196,7 +196,7 @@ export function PayslipsClient() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        지금은 이 브라우저 탭 안에서만 링크가 열려요. 다른 기기에서도 열리게 하려면 저장소(Supabase) 연결이 필요해요.
+        여기서 여는 명세서는 담당자용 미리보기라 이 브라우저에서만 열려요. 직원이 휴대폰 등 다른 기기에서 여는 링크는 발송할 때 만들어져요.
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
