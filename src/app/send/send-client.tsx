@@ -375,7 +375,7 @@ function Preview({ batch, employee: e }: { batch: PayrollBatch; employee: Employ
             <a href={link} className="rounded-md border bg-muted px-3 py-2 text-center font-medium hover:bg-muted/70">
               명세서 확인하기
             </a>
-            <p className="text-xs text-muted-foreground">명세서는 개인정보라서 열 때 생년월일 8자리(예: 19xx.xx.xx, 점 없이 숫자만)를 입력해야 해요.</p>
+            <p className="text-xs text-muted-foreground">명세서는 개인정보라서 열 때 생년월일 8자리(예: 19xx.xx.xx, 점 없이 숫자만) 또는 휴대폰 번호 뒤 4자리를 입력해야 해요.</p>
             <p className="text-xs text-muted-foreground">이 메시지는 급여명세서 수신에 동의하신 분께 발송돼요.</p>
           </div>
         </div>
@@ -397,7 +397,7 @@ function Preview({ batch, employee: e }: { batch: PayrollBatch; employee: Employ
             <a href={link} className="rounded-md border bg-muted px-3 py-2 text-center font-medium hover:bg-muted/70">
               명세서 보기
             </a>
-            <p className="text-xs text-muted-foreground">명세서는 개인정보라서 열 때 생년월일 8자리(예: 19xx.xx.xx, 점 없이 숫자만)를 입력해야 해요.</p>
+            <p className="text-xs text-muted-foreground">명세서는 개인정보라서 열 때 생년월일 8자리(예: 19xx.xx.xx, 점 없이 숫자만) 또는 휴대폰 번호 뒤 4자리를 입력해야 해요.</p>
             <p className="text-xs text-muted-foreground">명세서 화면에서 &lsquo;PDF로 저장&rsquo;을 눌러 파일로 보관할 수도 있어요.</p>
             <p className="text-xs text-muted-foreground">문의는 급여 담당자에게 해 주세요.</p>
           </div>
