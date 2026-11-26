@@ -17,6 +17,8 @@ export type SendState = {
   records: Record<string, Partial<Record<Channel, SendRecord>>>;
   /** 직원 id → 명세서를 열어 본 기록 (시연: 같은 브라우저 탭 안에서만 기록된다) */
   opens: Record<string, OpenRecord>;
+  /** 직원 id → 다른 기기에서 여는 명세서 링크 id (서버에 올렸을 때만) */
+  shares?: Record<string, string>;
 };
 
 const KEY = "jaber.send.v1";
@@ -61,8 +63,8 @@ export function useSendState(): SendState | null {
 function base(signature: string): SendState {
   const cur = read();
   return cur && cur.signature === signature
-    ? { signature, records: structuredClone(cur.records), opens: structuredClone(cur.opens ?? {}) }
-    : { signature, records: {}, opens: {} };
+    ? { signature, records: structuredClone(cur.records), opens: structuredClone(cur.opens ?? {}), shares: { ...cur.shares } }
+    : { signature, records: {}, opens: {}, shares: {} };
 }
 
 /** 보낸 것으로 기록한다 (시연). 이미 보낸 곳에 다시 보내면(재발송) 시각을 새로 쓰고 횟수를 늘린다 */
@@ -74,6 +76,18 @@ export function recordSent(signature: string, items: { employeeId: string; chann
     next.records[employeeId] = { ...next.records[employeeId], [channel]: { at, count: prev ? (prev.count ?? 1) + 1 : 1 } };
   }
   commit(next);
+}
+
+/** 서버에 올린 명세서 링크 id를 기억한다 (재발송하면 같은 링크를 다시 쓴다) */
+export function recordShares(signature: string, shares: Record<string, string>) {
+  const next = base(signature);
+  next.shares = { ...next.shares, ...shares };
+  commit(next);
+}
+
+/** 직원 id의 명세서 링크 id. 서버에 올리지 않았으면 직원 id 그대로 (같은 브라우저에서만 열린다) */
+export function linkIdOf(state: SendState | null, signature: string, employeeId: string): string {
+  return (state && state.signature === signature && state.shares?.[employeeId]) || employeeId;
 }
 
 /** 직원이 명세서를 처음 열었다고 기록한다. 이미 기록이 있으면 바꾸지 않는다 */

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import type { EmployeePay } from "@/types/payroll";
 import { birthCandidates, matchesSecret, phoneTailCandidates } from "./verify";
 
+export const box = "mx-auto flex max-w-md flex-col gap-3 rounded-2xl border bg-background p-6 shadow-sm";
+
 const keyOf = (id: string) => `jaber.unlocked.${id}`;
 
 // 본인 확인을 마친 직원 id는 이 탭(sessionStorage)에만 기억한다. 새로고침해도 유지되고 탭을 닫으면 다시 묻는다.
@@ -56,12 +58,7 @@ export function IdentityGate({
     () => new URLSearchParams(window.location.search).has("preview"),
     () => false,
   );
-  const [value, setValue] = useState("");
-  const [wrong, setWrong] = useState(false);
-
   if (unlocked || preview) return <>{children}</>;
-
-  const box = "mx-auto flex max-w-md flex-col gap-3 rounded-2xl border bg-background p-6 shadow-sm";
 
   if (births.length === 0 && phoneTails.length === 0) {
     return (
@@ -74,13 +71,39 @@ export function IdentityGate({
     );
   }
 
-  function submit(e: FormEvent) {
+  return (
+    <SecretForm
+      onSubmit={async (value) => {
+        if (!matchesSecret(births, phoneTails, value)) return "wrong";
+        unlock(employee.id);
+        return "ok";
+      }}
+    />
+  );
+}
+
+export type SecretResult = "ok" | "wrong" | "locked" | "error";
+
+const WRONG_TEXT: Record<Exclude<SecretResult, "ok">, string> = {
+  wrong: "맞지 않아요. 생년월일 8자리 또는 휴대폰 번호 뒤 4자리를 다시 확인해 주세요.",
+  locked: "비밀번호를 여러 번 틀려서 잠겼어요. 담당자에게 문의해 주세요.",
+  error: "확인하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.",
+};
+
+/** 본인 확인 비밀번호 입력 칸. 확인 방법(브라우저 안·서버)은 onSubmit이 정한다 */
+export function SecretForm({ onSubmit }: { onSubmit: (value: string) => Promise<SecretResult> }) {
+  const [value, setValue] = useState("");
+  const [result, setResult] = useState<Exclude<SecretResult, "ok"> | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    if (matchesSecret(births, phoneTails, value)) {
-      unlock(employee.id);
-      return;
-    }
-    setWrong(true);
+    if (busy) return;
+    setBusy(true);
+    const r = await onSubmit(value);
+    setBusy(false);
+    if (r === "ok") return;
+    setResult(r);
     setValue("");
   }
 
@@ -95,7 +118,7 @@ export function IdentityGate({
         value={value}
         onChange={(e) => {
           setValue(e.target.value.replace(/\D/g, "").slice(0, 8));
-          setWrong(false);
+          setResult(null);
         }}
         type="password"
         inputMode="numeric"
@@ -106,13 +129,13 @@ export function IdentityGate({
         className="rounded-md border bg-background px-3 py-2 text-center text-sm tracking-widest outline-none focus:border-ring"
       />
       <p className="text-xs text-muted-foreground">예) 19xx.xx.xx 생이면 점(.) 없이 숫자 8자리, 010-1234-5678이면 5678로 입력해요</p>
-      {wrong && (
+      {result && (
         <p role="alert" className="text-sm text-red-600">
-          맞지 않아요. 생년월일 8자리 또는 휴대폰 번호 뒤 4자리를 다시 확인해 주세요.
+          {WRONG_TEXT[result]}
         </p>
       )}
-      <Button type="submit" disabled={value.length !== 8 && value.length !== 4}>
-        확인
+      <Button type="submit" disabled={busy || (value.length !== 8 && value.length !== 4)}>
+        {busy ? "확인 중…" : "확인"}
       </Button>
     </form>
   );
