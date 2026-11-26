@@ -15,7 +15,7 @@ export type SendState = {
   signature: string;
   /** 직원 id → 채널별 발송 기록 */
   records: Record<string, Partial<Record<Channel, SendRecord>>>;
-  /** 직원 id → 명세서를 열어 본 기록 (시연: 같은 브라우저 탭 안에서만 기록된다) */
+  /** 직원 id → 같은 브라우저에서 명세서를 열어 본 기록. 다른 기기에서 연 기록은 Supabase에서 따로 받아 합친다 */
   opens: Record<string, OpenRecord>;
   /** 직원 id → 다른 기기에서 여는 명세서 링크 id (서버에 올렸을 때만) */
   shares?: Record<string, string>;

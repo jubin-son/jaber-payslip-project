@@ -1,6 +1,6 @@
 "use client";
 // 발송 관리 > 발송 결과·재발송: 발송(시연) 기록과 열람 기록을 사업장·귀속월별로 모아 보고, 보낸 곳으로 다시 보낸다. 처음 보내는 일은 '발송하기'에서 한다.
-// 기록은 send-store(sessionStorage)에 있어서 지금은 같은 브라우저 탭 안에서만 남는다.
+// 발송 기록은 send-store(sessionStorage)에 있어서 같은 브라우저 탭 안에서만 남는다. 다른 기기에서 연 기록은 Supabase에서 받아 합친다(useRemoteOpens).
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -218,7 +218,7 @@ export function HistoryClient() {
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-        <p className="text-xs text-muted-foreground">시연이라 기록은 이 브라우저 탭 안에서만 남아요. 다른 기기의 열람까지 보려면 저장소(Supabase) 연결이 필요해요.</p>
+        <p className="text-xs text-muted-foreground">시연이라 실제 알림톡·메일은 나가지 않아요. 직원이 휴대폰 등 다른 기기에서 명세서를 열면 저장소(Supabase)를 통해 여기에 열람으로 표시돼요. 발송 기록은 이 브라우저 탭 안에만 남아요.</p>
         <Button asChild>
           <Link href="/send">명세서 발송하러 가기 →</Link>
         </Button>
