@@ -8,18 +8,16 @@ export const STEPS = [
   // AI 정리(/organize)는 화면에 보여주지 않고 '명세서 변환하기' 안에서 돈다
   { href: "/upload", no: 1, label: "업로드" },
   { href: "/review", no: 2, label: "확인·수정" },
-  { href: "/payslips", no: 3, label: "명세서" },
-  { href: "/send", no: 4, label: "발송" },
+  { href: "/payslips", no: 3, label: "명세서 변환" },
 ];
 
-/** 지금 경로가 급여명세서의 몇 단계인지. 발송 관리(/send/history)는 단계가 아니다 */
+/** 지금 경로가 급여명세서 작성의 몇 단계인지. 급여명세서 관리·발송 관리는 단계가 아니다 */
 export function stepOf(pathname: string) {
-  if (pathname.startsWith("/send/history")) return undefined;
   if (pathname.startsWith("/organize")) return STEPS[0];
   return STEPS.find((s) => pathname === s.href || pathname.startsWith(`${s.href}/`));
 }
 
-// 모든 관리자 화면 공통 상단 바. 홈에서는 '시작하기', 단계 화면에서는 1~4단계 이동을 보여준다.
+// 모든 관리자 화면 공통 상단 바. 홈에서는 '시작하기', 작성 화면에서는 1~3단계 이동을 보여준다.
 export function SiteHeader() {
   const pathname = usePathname();
   const current = stepOf(pathname);

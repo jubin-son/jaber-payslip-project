@@ -1,7 +1,7 @@
 "use client";
 // 2단계(화면 기준): 급여명세서 확인·수정 화면.
 // 업로드에서 '명세서 변환하기'로 정리한 결과(src/lib/store.ts)를 읽어 보여준다. 올린 파일이 없으면 안내만 보여준다.
-// 구성: 맨 위 숫자 오류 의심 안내 · 왼쪽 직원 목록 · 가운데 명세서에 들어갈 내용(수정) · 오른쪽 명세서 미리보기(바로 반영)
+// 구성: 맨 위 숫자 오류 의심 안내 · 왼쪽 직원 목록 · 오른쪽 명세서에 들어갈 내용(수정). 명세서 모양은 다음 단계(명세서 변환)에서 본다
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useParseResult } from "@/lib/store";
@@ -30,7 +30,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PayslipCard } from "@/app/payslips/payslip-card";
 import { AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
 
 // ---------- 작은 도우미 ----------
@@ -367,7 +366,7 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
       {/* 숫자 오류 의심 내역 */}
       <SuspectBanner batches={batches} onPick={selectEmployee} />
 
-      <div className="grid items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)] min-[1440px]:grid-cols-[220px_minmax(0,1fr)_380px]">
+      <div className="grid items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
         {/* 왼쪽: 인식한 임직원 목록 */}
         <aside className="flex flex-col gap-3 lg:sticky lg:top-24">
           <div className="flex items-baseline justify-between px-1">
@@ -409,7 +408,7 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
           </nav>
         </aside>
 
-        {/* 가운데: 명세서에 들어갈 내용 (수정) */}
+        {/* 오른쪽: 명세서에 들어갈 내용 (수정) */}
         <section className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-white px-4 py-3 text-sm ring-1 ring-neutral-200/70">
             <span className="font-semibold">{batch.companyName}</span>
@@ -458,15 +457,6 @@ function ReviewScreen({ state, result }: { state: ReviewState; result: ParseResu
             </Button>
           </div>
         </section>
-
-        {/* 오른쪽: 명세서 미리보기 (가운데에서 고치면 바로 바뀐다) */}
-        <aside className="flex min-w-0 flex-col gap-3 lg:col-span-2 min-[1440px]:sticky min-[1440px]:top-24 min-[1440px]:col-span-1">
-          <div className="flex items-baseline justify-between px-1">
-            <h2 className="font-bold">명세서 미리보기</h2>
-            <span className="text-xs text-muted-foreground">고치면 바로 바뀌어요</span>
-          </div>
-          <PayslipCard batch={batch} employee={selected} />
-        </aside>
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
