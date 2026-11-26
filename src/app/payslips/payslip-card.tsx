@@ -68,7 +68,16 @@ function Rows({
   );
 }
 
-export function PayslipCard({ batch, employee: e }: { batch: PayrollBatch; employee: EmployeePay }) {
+export function PayslipCard({
+  batch,
+  employee: e,
+  context,
+}: {
+  batch: PayrollBatch;
+  employee: EmployeePay;
+  /** 다른 기기에서 여는 명세서는 보낼 때 정해 둔 기준을 쓴다 (그 기기에는 기본 관리·임직원 정보가 없으므로) */
+  context?: StatementContext;
+}) {
   const w = e.workInfo;
   const work = [
     w?.workDays ? `근무 ${w.workDays}일` : null,
@@ -79,7 +88,8 @@ export function PayslipCard({ batch, employee: e }: { batch: PayrollBatch; emplo
 
   const idInfo = identityParts(e); // 같은 이름 구분용 (사번·생년월일·입사일)
   // 임직원 관리에서 사업소득으로 정한 직원은 제목을 바꾼다
-  const ctx = useStatementContext(batch).forEmployee(e);
+  const localCtx = useStatementContext(batch).forEmployee(e);
+  const ctx = context ?? localCtx;
   const docTitle = ctx.businessIncome ? "사업소득 지급명세서" : "급여명세서";
   const rule = overtimeRuleText(e, ctx);
 

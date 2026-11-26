@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { dateText, periodText, useReviewed } from "@/app/payslips/use-reviewed";
 import type { EmployeePay, PayrollBatch } from "@/types/payroll";
-import { rosterStore } from "@/lib/hr-store";
+import { rosterStore, settingsStore } from "@/lib/hr-store";
+import { statementContextOf } from "@/app/payslips/payslip-card";
+import { newShareId, payloadOf, publishShares, useRemoteOpens, type PublishItem } from "@/lib/share/client";
 import { availability, CHANNEL_LABEL, defaultPick, maskEmail, maskPhone, secretNote, unsentReason, type Channel, type Pick } from "./channels";
-import { clearSent, recordSent, useSendState } from "./send-store";
+import { clearSent, linkIdOf, recordSent, recordShares, useSendState, type SendState } from "./send-store";
 
 const CHANNELS: Channel[] = ["kakao", "mail"];
 
@@ -38,6 +40,9 @@ export function SendClient() {
   const reviewed = useReviewed();
   const sendState = useSendState();
   const roster = rosterStore.use();
+  const settings = settingsStore.use();
+  const remoteOpens = useRemoteOpens(sendState?.shares);
+  const [shareNote, setShareNote] = useState<string | null>(null);
   const [batchIdx, setBatchIdx] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picks, setPicks] = useState<Record<string, Pick>>({});
@@ -62,7 +67,10 @@ export function SendClient() {
   const ready = batch.employees.filter((e) => issuable.has(e.id));
   const blocked = batch.employees.length - ready.length;
   const records = sendState && sendState.signature === signature ? sendState.records : {};
-  const opens = sendState && sendState.signature === signature ? (sendState.opens ?? {}) : {};
+  const localOpens = sendState && sendState.signature === signature ? (sendState.opens ?? {}) : {};
+  // 같은 브라우저에서 연 기록 + 다른 기기에서 연 기록(서버)
+  const opens: Record<string, { at: string }> = { ...localOpens };
+  if (sendState?.signature === signature) for (const [id, at] of Object.entries(remoteOpens)) opens[id] ??= { at };
   const selected = ready.find((e) => e.id === selectedId) ?? ready[0] ?? null;
 
   const pickOf = (e: EmployeePay): Pick => picks[e.id] ?? defaultPick(e);
@@ -94,13 +102,38 @@ export function SendClient() {
   }
 
   function send() {
-    if (toSend.length === 0 || sending) return;
+    if (toSend.length === 0 || sending || !batch) return;
+    const cur = batch;
     setSending(true);
-    // 시연: 실제 발송 대신 잠깐 기다렸다가 보낸 것으로 기록한다
-    setTimeout(() => {
-      recordSent(signature, toSend);
-      setSending(false);
-    }, 900);
+    setShareNote(null);
+    // 다른 기기에서도 열리게 명세서를 서버에 올린다. 이미 올린 직원은 같은 링크로 내용만 새로 덮어쓴다
+    const shares = { ...(sendState?.signature === signature ? sendState.shares : undefined) };
+    const items: PublishItem[] = [...new Set(toSend.map((i) => i.employeeId))].map((employeeId) => {
+      const e = cur.employees.find((x) => x.id === employeeId)!;
+      const reg = roster?.find((r) => r.memberId === e.match?.memberId);
+      shares[employeeId] ??= newShareId();
+      return {
+        id: shares[employeeId],
+        employeeId,
+        payload: payloadOf(cur, e, statementContextOf(settings, roster, cur).forEmployee(e)),
+        births: [e.birthDate, reg?.birthDate],
+        phones: [e.match?.phone, reg?.phone],
+      };
+    });
+    const started = Date.now();
+    publishShares(signature, items)
+      .then((r) => {
+        if (r.enabled) recordShares(signature, shares);
+        else setShareNote("공유 저장소(Supabase)가 연결되지 않아서, 명세서 링크는 이 브라우저에서만 열려요.");
+      })
+      .catch(() => setShareNote("명세서를 서버에 올리지 못했어요. 링크는 이 브라우저에서만 열려요. 잠시 뒤 다시 보내 보세요."))
+      .finally(() => {
+        // 시연: 실제 발송 대신 보낸 것으로 기록한다
+        setTimeout(() => {
+          recordSent(signature, toSend);
+          setSending(false);
+        }, Math.max(0, 900 - (Date.now() - started)));
+      });
   }
 
   return (
@@ -276,7 +309,7 @@ export function SendClient() {
           </ul>
 
           {/* 미리보기 */}
-          {selected && <Preview batch={batch} employee={selected} />}
+          {selected && <Preview batch={batch} employee={selected} sendState={sendState} signature={signature} />}
         </div>
       )}
 
@@ -302,9 +335,14 @@ export function SendClient() {
           </Button>
         </div>
       </div>
+      {shareNote && (
+        <p role="status" className="text-sm text-amber-700">
+          {shareNote}
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">
-        시연이라 실제 알림톡·메일은 나가지 않아요. 명세서 링크는 지금은 같은 브라우저 탭 안에서만 열려요. 다른 기기에서도 열리게 하려면 저장소(Supabase)
-        연결이 필요해요.
+        시연이라 실제 알림톡·메일은 나가지 않아요. 발송하면 명세서가 저장소(Supabase)에 올라가서, 미리보기의 링크를 휴대폰 등 다른 기기에서 열 수 있어요.
+        직원이 열면 &lsquo;열람&rsquo;으로 표시돼요.
       </p>
     </div>
   );
@@ -343,9 +381,22 @@ function MatchBadge({ e }: { e: EmployeePay }) {
 }
 
 /** 받는 사람이 보게 될 알림톡·메일 미리보기 */
-function Preview({ batch, employee: e }: { batch: PayrollBatch; employee: EmployeePay }) {
+function Preview({
+  batch,
+  employee: e,
+  sendState,
+  signature,
+}: {
+  batch: PayrollBatch;
+  employee: EmployeePay;
+  sendState: SendState | null;
+  signature: string;
+}) {
   const [tab, setTab] = useState<Channel>("kakao");
-  const link = `${window.location.origin}/p/${e.id}`;
+  const [copied, setCopied] = useState(false);
+  const linkId = linkIdOf(sendState, signature, e.id);
+  const shared = linkId !== e.id;
+  const link = `${window.location.origin}/p/${linkId}`;
   const period = periodText(batch.payPeriod);
 
   return (
@@ -361,7 +412,26 @@ function Preview({ batch, employee: e }: { batch: PayrollBatch; employee: Employ
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">시연: 아래 버튼을 누르면 직원이 명세서를 연 것으로 기록돼요.</p>
+      {shared ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">다른 기기에서도 열리는 링크</span>
+          <code className="min-w-0 flex-1 truncate">{link}</code>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              navigator.clipboard?.writeText(link).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              });
+            }}
+          >
+            {copied ? "복사했어요" : "링크 복사"}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">시연: 아래 버튼을 누르면 직원이 명세서를 연 것으로 기록돼요. 발송하면 다른 기기에서도 열리는 링크가 만들어져요.</p>
+      )}
 
       {tab === "kakao" ? (
         <div className="overflow-hidden rounded-xl border bg-background shadow-sm">

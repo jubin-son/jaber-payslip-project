@@ -10,6 +10,7 @@ import type { EmployeePay, PayrollBatch } from "@/types/payroll";
 import { rosterStore } from "@/lib/hr-store";
 import { CHANNEL_LABEL, maskEmail, maskPhone, secretNote, unsentReason, type Channel } from "../channels";
 import { recordSent, useSendState } from "../send-store";
+import { useRemoteOpens } from "@/lib/share/client";
 
 const CHANNELS: Channel[] = ["kakao", "mail"];
 
@@ -56,6 +57,7 @@ export function HistoryClient() {
   const [filter, setFilter] = useState<Filter>("all");
   const [resending, setResending] = useState(false);
   const roster = rosterStore.use();
+  const remoteOpens = useRemoteOpens(sendState?.shares);
 
   if (reviewed.status === "loading") return <p className="text-muted-foreground">불러오는 중…</p>;
   if (reviewed.status !== "ready") {
@@ -72,7 +74,9 @@ export function HistoryClient() {
   const { batches, issuable, signature } = reviewed;
   const same = sendState && sendState.signature === signature;
   const records = same ? sendState.records : {};
-  const opens = same ? (sendState.opens ?? {}) : {};
+  // 같은 브라우저에서 연 기록 + 다른 기기에서 연 기록(서버)
+  const opens: Record<string, { at: string }> = { ...(same ? (sendState.opens ?? {}) : {}) };
+  if (same) for (const [id, at] of Object.entries(remoteOpens)) opens[id] ??= { at };
 
   // 발송 대상(오류가 없는 직원)만 센다
   const rows: Row[] = batches.flatMap((batch) =>
