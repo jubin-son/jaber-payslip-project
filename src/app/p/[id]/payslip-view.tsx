@@ -32,14 +32,6 @@ function PayslipWithActions({
 
   // 직원이 링크로 열면 열람 시각을 남긴다. 담당자가 목록에서 여는 미리보기(?preview=1)는 직원이 본 게 아니라서 남기지 않는다.
   // (시연: 지금은 같은 브라우저 탭 안에서만 기록된다. 직원 기기에서 열린 걸 알려면 저장소(Supabase)가 필요하다)
-  // 담당자 목록의 'PDF 저장'(?print=1)으로 열면 저장 창을 바로 띄운다
-  const printed = useRef(false);
-  useEffect(() => {
-    if (printed.current) return;
-    printed.current = true;
-    if (new URLSearchParams(window.location.search).has("print")) setTimeout(() => printAs(fileName), 400);
-  }, [fileName]);
-
   const recorded = useRef(false);
   useEffect(() => {
     if (recorded.current) return;
