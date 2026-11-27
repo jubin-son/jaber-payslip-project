@@ -265,6 +265,83 @@ export function SendClient() {
         </CardContent>
       </Card>
 
+      {/* 발송: 직원이 많아도 내려가지 않게 위쪽에 둔다 */}
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {alreadySent > 0 && (
+            <>
+              <span className="text-sm text-muted-foreground">발송(시연) {alreadySent}건 기록됨</span>
+              <Button variant="ghost" size="sm" onClick={clearSent}>
+                발송·열람 기록 지우기
+              </Button>
+            </>
+          )}
+          <Button variant="outline" asChild>
+            <Link href="/send/history">발송 결과 보기</Link>
+          </Button>
+          {mode === "now" || schedule ? (
+            <>
+              {!schedule && (
+                <Button variant="outline" disabled={toSend.length === 0 || sending} onClick={() => setMode("later")}>
+                  예약 발송
+                </Button>
+              )}
+              <Button disabled={toSend.length === 0 || sending} onClick={() => sendItems(toSend)}>
+                {sending ? "발송 중…" : toSend.length > 0 ? `${toSend.length}건 발송하기 (시연)` : "보낼 대상이 없어요"}
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" onClick={() => setMode("now")}>
+              예약 그만두기
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* 예약 발송 (시연) */}
+      {schedule && (
+        <ScheduleRunner at={schedule.at} onFire={fireSchedule}>
+          <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+            <span>
+              <b>{fmtTime(schedule.at)}</b>에 {schedule.items.length}건을 보낼 예정이에요.
+            </span>
+            <span className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={sending} onClick={fireSchedule}>
+                지금 바로 보내기
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => cancelSchedule(signature)}>
+                예약 취소
+              </Button>
+            </span>
+          </div>
+        </ScheduleRunner>
+      )}
+      {!schedule && mode === "later" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-3 py-3 text-sm">
+          <label className="flex items-center gap-2">
+            <span className="font-medium">보낼 시각</span>
+            <input
+              type="datetime-local"
+              value={when}
+              onChange={(ev) => setWhen(ev.target.value)}
+              className="rounded-md border bg-background px-2 py-1"
+            />
+          </label>
+          <Button size="sm" variant="outline" onClick={() => setWhen(localInput(Date.now() + 60_000))}>
+            1분 뒤로 맞추기 (시연)
+          </Button>
+          <Button size="sm" disabled={toSend.length === 0} onClick={reserve}>
+            {toSend.length}건 예약하기
+          </Button>
+          {whenError && <span className="text-red-600">{whenError}</span>}
+        </div>
+      )}
+      {shareNote && (
+        <p role="status" className="text-sm text-amber-700">
+          {shareNote}
+        </p>
+      )}
+
       {ready.length === 0 ? (
         <Guide
           title="발송할 수 있는 직원이 없어요"
@@ -353,89 +430,17 @@ export function SendClient() {
         </div>
       )}
 
-      {/* 발송 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-        <Button variant="outline" asChild>
-          <Link href="/payslips">← 명세서 변환</Link>
-        </Button>
-        <div className="flex flex-wrap items-center gap-3">
-          {alreadySent > 0 && (
-            <>
-              <span className="text-sm text-muted-foreground">발송(시연) {alreadySent}건 기록됨</span>
-              <Button variant="ghost" size="sm" onClick={clearSent}>
-                발송·열람 기록 지우기
-              </Button>
-            </>
-          )}
+      <div className="flex flex-col gap-3 border-t pt-4">
+        <div>
           <Button variant="outline" asChild>
-            <Link href="/send/history">발송 결과 보기</Link>
+            <Link href="/payslips">← 명세서 변환</Link>
           </Button>
-          {mode === "now" || schedule ? (
-            <>
-              {!schedule && (
-                <Button variant="outline" disabled={toSend.length === 0 || sending} onClick={() => setMode("later")}>
-                  예약 발송
-                </Button>
-              )}
-              <Button disabled={toSend.length === 0 || sending} onClick={() => sendItems(toSend)}>
-                {sending ? "발송 중…" : toSend.length > 0 ? `${toSend.length}건 발송하기 (시연)` : "보낼 대상이 없어요"}
-              </Button>
-            </>
-          ) : (
-            <Button variant="ghost" onClick={() => setMode("now")}>
-              예약 그만두기
-            </Button>
-          )}
         </div>
-      </div>
-
-      {/* 예약 발송 (시연) */}
-      {schedule && (
-        <ScheduleRunner at={schedule.at} onFire={fireSchedule}>
-          <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
-            <span>
-              <b>{fmtTime(schedule.at)}</b>에 {schedule.items.length}건을 보낼 예정이에요.
-            </span>
-            <span className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={sending} onClick={fireSchedule}>
-                지금 바로 보내기
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => cancelSchedule(signature)}>
-                예약 취소
-              </Button>
-            </span>
-          </div>
-        </ScheduleRunner>
-      )}
-      {!schedule && mode === "later" && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-3 py-3 text-sm">
-          <label className="flex items-center gap-2">
-            <span className="font-medium">보낼 시각</span>
-            <input
-              type="datetime-local"
-              value={when}
-              onChange={(ev) => setWhen(ev.target.value)}
-              className="rounded-md border bg-background px-2 py-1"
-            />
-          </label>
-          <Button size="sm" variant="outline" onClick={() => setWhen(localInput(Date.now() + 60_000))}>
-            1분 뒤로 맞추기 (시연)
-          </Button>
-          <Button size="sm" disabled={toSend.length === 0} onClick={reserve}>
-            {toSend.length}건 예약하기
-          </Button>
-          {whenError && <span className="text-red-600">{whenError}</span>}
-        </div>
-      )}
-      {shareNote && (
-        <p role="status" className="text-sm text-amber-700">
-          {shareNote}
-        </p>
-      )}
-      <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
         시연이라 실제 알림톡·메일은 나가지 않아요. 예약 발송은 이 발송 화면을 열어 둔 동안에만 시각에 맞춰 보내져요. 발송하면 명세서가 저장소(Supabase)에 올라가서, 미리보기의 링크를 휴대폰 등 다른 기기에서 열 수 있어요.
         직원이 열면 &lsquo;열람&rsquo;으로 표시돼요.
-      </p>
+        </p>
+      </div>
     </div>
   );
 }
