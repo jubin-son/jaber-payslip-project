@@ -126,3 +126,50 @@ export const signedWon = (n: number) =>
   n === 0 ? "변동 없음" : `${n > 0 ? "+" : "-"}${Math.abs(Math.round(n)).toLocaleString("ko-KR")}원`;
 
 export const pctText = (p: number | null) => (p === null ? "신규" : `${p > 0 ? "+" : ""}${p.toFixed(1)}%`);
+
+export type EmployeeMonth = {
+  period: string;
+  totalEarnings: number;
+  totalDeductions: number;
+  netPay: number;
+  earnings: CategoryTotals;
+  deductions: CategoryTotals;
+};
+
+export type EmployeeHistory = {
+  key: string;
+  name: string;
+  company: string;
+  /** 오래된 달부터 */
+  months: EmployeeMonth[];
+};
+
+/** 직원별로 달마다 급여가 어떻게 달라졌는지 (한 번이라도 기록이 있는 직원 전부, 이름순) */
+export function employeeHistories(archive: ArchivedPayslips[], company?: string): EmployeeHistory[] {
+  const map = new Map<string, EmployeeHistory>();
+  for (const a of archive) {
+    const b = a.batch;
+    if (company && b.companyName !== company) continue;
+    for (const e of b.employees) {
+      const key = employeeKeyOf(b.companyName, e);
+      let h = map.get(key);
+      if (!h) {
+        h = { key, name: e.name, company: b.companyName, months: [] };
+        map.set(key, h);
+      }
+      let m = h.months.find((x) => x.period === b.payPeriod);
+      if (!m) {
+        m = { period: b.payPeriod, totalEarnings: 0, totalDeductions: 0, netPay: 0, earnings: {}, deductions: {} };
+        h.months.push(m);
+      }
+      m.totalEarnings += e.totalEarnings;
+      m.totalDeductions += e.totalDeductions;
+      m.netPay += e.netPay;
+      for (const it of e.earnings) add(m.earnings, it.category, it.amount);
+      for (const it of e.deductions) add(m.deductions, it.category, it.amount);
+    }
+  }
+  const list = [...map.values()];
+  for (const h of list) h.months.sort((x, y) => x.period.localeCompare(y.period));
+  return list.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+}

@@ -13,6 +13,8 @@ import {
   compareCategories,
   compareEmployees,
   delta,
+  employeeHistories,
+  type EmployeeHistory,
   pctText,
   signedWon,
   summarizeMonths,
@@ -33,6 +35,8 @@ export function DashboardClient() {
       : null;
   const [company, setCompany] = useState("");
   const [month, setMonth] = useState<string | null>(null);
+  const [tab, setTab] = useState<"all" | "employee">("all");
+  const [empKey, setEmpKey] = useState<string | null>(null);
 
   if (archive === null) return <p className="text-muted-foreground">불러오는 중…</p>;
   if (archive.length === 0) {
@@ -60,6 +64,19 @@ export function DashboardClient() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex gap-1 rounded-xl bg-neutral-100 p-1 text-sm font-semibold sm:w-fit" role="tablist">
+        {([["all", "전체 현황"], ["employee", "직원별 급여 변화"]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={tab === k}
+            onClick={() => setTab(k)}
+            className={`rounded-lg px-4 py-1.5 ${tab === k ? "bg-white shadow-sm" : "text-neutral-500 hover:text-neutral-900"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {/* 보기 조건 */}
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <label className="flex items-center gap-2">
@@ -73,6 +90,7 @@ export function DashboardClient() {
             ))}
           </select>
         </label>
+        {tab === "all" && (
         <label className="flex items-center gap-2">
           <span className="text-muted-foreground">기준월</span>
           <select value={cur.period} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border bg-white px-3 py-1.5">
@@ -83,13 +101,20 @@ export function DashboardClient() {
             ))}
           </select>
         </label>
-        <span className="text-muted-foreground">{prev ? `${periodText(prev.period)}과 비교` : "비교할 이전 달이 아직 없어요"}</span>
+        )}
+        {tab === "all" && <span className="text-muted-foreground">{prev ? `${periodText(prev.period)}과 비교` : "비교할 이전 달이 아직 없어요"}</span>}
       </div>
 
+      {tab === "employee" ? (
+        <EmployeeView histories={employeeHistories(archive, sel || undefined)} empKey={empKey} onPick={setEmpKey} />
+      ) : (
+      <>
       <Kpis cur={cur} prev={prev} />
       <Trend stats={stats} curPeriod={cur.period} />
       {prev ? <Compare cur={cur} prev={prev} /> : <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">다음 달 명세서를 변환하면 지난달과 비교한 변동이 여기에 나와요.</CardContent></Card>}
       {!sel && Object.keys(cur.byCompany).length > 1 && <Companies cur={cur} prev={prev} />}
+      </>
+      )}
 
       <p className="text-xs text-muted-foreground">
         명세서 변환 화면에서 오류 없는 직원만 저장돼요. 기록은 이 브라우저에 있어서, 다른 기기에서 보려면 저장소(Supabase) 연결이 필요해요.
@@ -303,5 +328,118 @@ function Companies({ cur, prev }: { cur: MonthStat; prev?: MonthStat }) {
         </table>
       </CardContent>
     </Card>
+  );
+}
+
+/** 직원별 급여 변화: 왼쪽에서 직원을 고르면 달마다 지급·공제·실지급이 어떻게 달라졌는지 본다 */
+function EmployeeView({ histories, empKey, onPick }: { histories: EmployeeHistory[]; empKey: string | null; onPick: (k: string) => void }) {
+  const [q, setQ] = useState("");
+  const list = histories.filter((h) => !q.trim() || h.name.includes(q.trim()));
+  const sel = histories.find((h) => h.key === empKey) ?? list[0] ?? null;
+  return (
+    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="flex flex-col gap-2">
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="직원 이름 검색"
+          className="rounded-lg border bg-white px-3 py-2 text-sm"
+        />
+        <ul className="flex max-h-[32rem] flex-col gap-2 overflow-y-auto">
+          {list.map((h) => {
+            const last = h.months[h.months.length - 1];
+            const before = h.months[h.months.length - 2];
+            const d = before ? last.netPay - before.netPay : 0;
+            return (
+              <li key={h.key}>
+                <button
+                  type="button"
+                  onClick={() => onPick(h.key)}
+                  className={`flex w-full items-center justify-between gap-2 rounded-lg border p-3 text-left ${
+                    sel?.key === h.key ? "border-foreground bg-muted" : "bg-white hover:bg-neutral-50"
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{h.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{h.company} · {h.months.length}개월</span>
+                  </span>
+                  <span className={`shrink-0 text-xs tabular-nums ${tone(d)}`}>{before ? signedWon(d) : ""}</span>
+                </button>
+              </li>
+            );
+          })}
+          {list.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">해당하는 직원이 없어요.</li>}
+        </ul>
+      </div>
+      {sel && <EmployeeDetail h={sel} />}
+    </div>
+  );
+}
+
+function EmployeeDetail({ h }: { h: EmployeeHistory }) {
+  const max = Math.max(...h.months.map((m) => m.netPay), 1);
+  const cats = (pick: (m: EmployeeHistory["months"][number]) => Record<string, number>) => [...new Set(h.months.flatMap((m) => Object.keys(pick(m))))];
+  const earnCats = cats((m) => m.earnings);
+  const dedCats = cats((m) => m.deductions);
+  const row = (label: string, vals: number[], strong = false) => (
+    <tr key={label} className={`border-b last:border-0 ${strong ? "font-semibold" : ""}`}>
+      <td className="whitespace-nowrap py-2 pr-3">{label}</td>
+      {vals.map((v, i) => {
+        const d = i > 0 ? v - vals[i - 1] : 0;
+        return (
+          <td key={i} className="py-2 text-right tabular-nums">
+            {won(v)}
+            {d !== 0 && <span className={`block text-[11px] font-normal ${tone(d)}`}>{signedWon(d)}</span>}
+          </td>
+        );
+      })}
+    </tr>
+  );
+  return (
+    <div className="flex min-w-0 flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardDescription>{h.company}</CardDescription>
+          <CardTitle className="text-xl">{h.name} · 월별 실지급액</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="flex h-40 items-end gap-3 overflow-x-auto">
+            {h.months.map((m) => (
+              <li key={m.period} className="flex h-full min-w-14 flex-1 flex-col items-center justify-end gap-1">
+                <span className="text-[11px] tabular-nums text-muted-foreground">{Math.round(m.netPay / 10000).toLocaleString("ko-KR")}만</span>
+                <div className="w-full max-w-16 rounded-t-md bg-indigo-500" style={{ height: `${Math.max((m.netPay / max) * 70, 2)}%` }} title={`${periodText(m.period)} ${won(m.netPay)}`} />
+                <span className="text-xs text-muted-foreground">{Number(m.period.slice(5))}월</span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>항목별 변화</CardTitle>
+          <CardDescription>작은 글씨는 바로 앞 달과의 차이예요.</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-muted-foreground">
+                <th className="py-2 font-medium">항목</th>
+                {h.months.map((m) => (
+                  <th key={m.period} className="py-2 text-right font-medium">{periodText(m.period).replace(/^\d{4}년 /, "")}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {earnCats.map((c) => row(c, h.months.map((m) => m.earnings[c] ?? 0)))}
+              {row("지급 합계", h.months.map((m) => m.totalEarnings), true)}
+              {dedCats.map((c) => row(c, h.months.map((m) => m.deductions[c] ?? 0)))}
+              {row("공제 합계", h.months.map((m) => m.totalDeductions), true)}
+              {row("실지급액", h.months.map((m) => m.netPay), true)}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
