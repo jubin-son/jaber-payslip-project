@@ -468,8 +468,11 @@ function EmployeeView({ histories, empKey, onPick }: { histories: EmployeeHistor
 }
 
 function EmployeeDetail({ h }: { h: EmployeeHistory }) {
-  const multiYear = new Set(h.months.map((m) => m.period.slice(0, 4))).size > 1;
-  const cats = (pick: (m: EmployeeHistory["months"][number]) => Record<string, number>) => [...new Set(h.months.flatMap((m) => Object.keys(pick(m))))];
+  const [range, setRange] = useState<3 | 6 | 12>(3);
+  // 표는 기본으로 최근 3개월만 (12개월을 다 넣으면 복잡해서). 차트는 위에서 전체를 본다
+  const shown = h.months.slice(-range);
+  const multiYear = new Set(shown.map((m) => m.period.slice(0, 4))).size > 1;
+  const cats = (pick: (m: EmployeeHistory["months"][number]) => Record<string, number>) => [...new Set(shown.flatMap((m) => Object.keys(pick(m))))];
   const earnCats = cats((m) => m.earnings);
   const dedCats = cats((m) => m.deductions);
   const row = (label: string, vals: number[], strong = false) => (
@@ -503,26 +506,38 @@ function EmployeeDetail({ h }: { h: EmployeeHistory }) {
       <Card>
         <CardHeader>
           <CardTitle>항목별 변화</CardTitle>
-          <CardDescription>작은 글씨는 바로 앞 달과의 차이예요.</CardDescription>
+          <CardDescription>
+            최근 {Math.min(range, h.months.length)}개월이에요. 작은 글씨는 바로 앞 달과의 차이예요.
+          </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th className="py-2 font-medium">항목</th>
-                {h.months.map((m) => (
+                {shown.map((m) => (
                   <th key={m.period} className="py-2 text-right font-medium">{multiYear ? `${m.period.slice(2, 4)}년 ` : ""}{Number(m.period.slice(5))}월</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {earnCats.map((c) => row(c, h.months.map((m) => m.earnings[c] ?? 0)))}
-              {row("지급 합계", h.months.map((m) => m.totalEarnings), true)}
-              {dedCats.map((c) => row(c, h.months.map((m) => m.deductions[c] ?? 0)))}
-              {row("공제 합계", h.months.map((m) => m.totalDeductions), true)}
-              {row("실지급액", h.months.map((m) => m.netPay), true)}
+              {earnCats.map((c) => row(c, shown.map((m) => m.earnings[c] ?? 0)))}
+              {row("지급 합계", shown.map((m) => m.totalEarnings), true)}
+              {dedCats.map((c) => row(c, shown.map((m) => m.deductions[c] ?? 0)))}
+              {row("공제 합계", shown.map((m) => m.totalDeductions), true)}
+              {row("실지급액", shown.map((m) => m.netPay), true)}
             </tbody>
           </table>
+          {h.months.length > 3 && (
+            <div className="mt-3 flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">보기 기간</span>
+              {([3, 6, 12] as const).map((n) => (
+                <Button key={n} size="sm" variant={range === n ? "default" : "outline"} onClick={() => setRange(n)}>
+                  최근 {n}개월
+                </Button>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
