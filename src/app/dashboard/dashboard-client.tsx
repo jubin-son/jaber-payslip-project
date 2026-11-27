@@ -229,49 +229,57 @@ function Compare({ cur, prev }: { cur: MonthStat; prev: MonthStat }) {
         <CategoryTable title="지급 항목 비교" cur={cur.period} prev={prev.period} rows={earn} />
         <CategoryTable title="공제 항목 비교" cur={cur.period} prev={prev.period} rows={ded} />
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>직원별 변동</CardTitle>
-          <CardDescription>
-            {periodText(prev.period)} → {periodText(cur.period)} · 새로 들어옴 {news.length}명 · 빠짐 {left.length}명 · 금액 달라짐 {changed.length}명
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {people.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">지난달과 달라진 직원이 없어요.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="py-2 font-medium">직원</th>
-                  <th className="py-2 font-medium">구분</th>
-                  <th className="py-2 text-right font-medium">{periodText(prev.period)}</th>
-                  <th className="py-2 text-right font-medium">{periodText(cur.period)}</th>
-                  <th className="py-2 text-right font-medium">차이</th>
-                </tr>
-              </thead>
-              <tbody>
-                {people.slice(0, 30).map((p) => (
-                  <tr key={p.key} className="border-b last:border-0">
-                    <td className="py-2 font-medium">
-                      {p.name} <span className="text-xs font-normal text-muted-foreground">{p.company}</span>
-                    </td>
-                    <td className="py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${p.kind === "new" ? "bg-emerald-50 text-emerald-700" : p.kind === "left" ? "bg-neutral-100 text-neutral-600" : "bg-amber-50 text-amber-700"}`}>
-                        {p.kind === "new" ? "신규" : p.kind === "left" ? "이번 달 없음" : "금액 변동"}
-                      </span>
-                    </td>
-                    <td className="py-2 text-right tabular-nums">{p.kind === "new" ? "-" : won(p.prev)}</td>
-                    <td className="py-2 text-right tabular-nums">{p.kind === "left" ? "-" : won(p.cur)}</td>
-                    <td className={`py-2 text-right tabular-nums ${tone(p.diff)}`}>{signedWon(p.diff)}</td>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>인원 변동</CardTitle>
+            <CardDescription>
+              {periodText(prev.period)} → {periodText(cur.period)} · 인원 {prev.headcount}명 → {cur.headcount}명
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 text-sm">
+            <PeopleList title="새로 들어옴" tag="bg-emerald-50 text-emerald-700" rows={news} amount={(p) => p.cur} />
+            <PeopleList title="이번 달 없음" tag="bg-neutral-100 text-neutral-600" rows={left} amount={(p) => p.prev} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>월급 변동</CardTitle>
+            <CardDescription>두 달 모두 있는 직원 중 실지급액이 달라진 {changed.length}명이에요.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {changed.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">지난달과 금액이 달라진 직원이 없어요.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="py-2 font-medium">직원</th>
+                    <th className="py-2 text-right font-medium">{Number(prev.period.slice(5))}월</th>
+                    <th className="py-2 text-right font-medium">{Number(cur.period.slice(5))}월</th>
+                    <th className="py-2 text-right font-medium">차이</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {people.length > 30 && <p className="mt-2 text-xs text-muted-foreground">변동이 큰 순서로 30명까지 보여요. (전체 {people.length}명)</p>}
-        </CardContent>
-      </Card>
+                </thead>
+                <tbody>
+                  {changed.slice(0, 30).map((p) => (
+                    <tr key={p.key} className="border-b last:border-0">
+                      <td className="py-2 font-medium">
+                        {p.name} <span className="text-xs font-normal text-muted-foreground">{p.company}</span>
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{won(p.prev)}</td>
+                      <td className="py-2 text-right tabular-nums">{won(p.cur)}</td>
+                      <td className={`py-2 text-right tabular-nums ${tone(p.diff)}`}>
+                        {signedWon(p.diff)} <span className="text-xs">({pctText(p.pct)})</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {changed.length > 30 && <p className="mt-2 text-xs text-muted-foreground">변동이 큰 순서로 30명까지 보여요. (전체 {changed.length}명)</p>}
+          </CardContent>
+        </Card>
+      </div>
     </>
   );
 }
@@ -460,6 +468,31 @@ function EmployeeDetail({ h }: { h: EmployeeHistory }) {
           </table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function PeopleList({ title, tag, rows, amount }: { title: string; tag: string; rows: ReturnType<typeof compareEmployees>; amount: (p: ReturnType<typeof compareEmployees>[number]) => number }) {
+  return (
+    <div>
+      <p className="mb-2 flex items-center gap-2 font-semibold">
+        <span className={`rounded-full px-2 py-0.5 text-xs ${tag}`}>{title}</span>
+        {rows.length}명
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-muted-foreground">없어요.</p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {rows.map((p) => (
+            <li key={p.key} className="flex items-center justify-between gap-2">
+              <span>
+                {p.name} <span className="text-xs text-muted-foreground">{p.company}</span>
+              </span>
+              <span className="tabular-nums text-muted-foreground">{won(amount(p))}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
