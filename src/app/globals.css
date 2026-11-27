@@ -134,3 +134,27 @@ body {
   font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
   word-break: keep-all; /* 한글을 단어 단위로 줄바꿈 */
 }
+
+/* 첫 화면 등장 효과: 위로 살짝 떠오르며 나타남 / 배지가 톡 튀어나옴 / 화살표 진행 표시 */
+@keyframes landing-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes landing-pop {
+  0% { opacity: 0; transform: scale(0.7) translateY(8px); }
+  70% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes landing-nudge {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(var(--nudge-x, 0), var(--nudge-y, 4px)); }
+}
+.landing-rise { animation: landing-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.landing-pop { animation: landing-pop 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.landing-nudge { animation: landing-nudge 1.6s ease-in-out infinite; }
+@media (min-width: 1024px) {
+  .landing-nudge { --nudge-x: 4px; --nudge-y: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise, .landing-pop, .landing-nudge { animation: none; }
+}
