@@ -24,7 +24,11 @@ export function SiteHeader() {
   const isHome = pathname === "/";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-neutral-100 bg-white/85 backdrop-blur print:hidden">
+    <header
+      className={`sticky top-0 z-20 border-b backdrop-blur print:hidden ${
+        isHome ? "border-transparent bg-white/90" : "border-neutral-100 bg-white/85"
+      }`}
+    >
       <div className={`flex h-16 items-center justify-between gap-4 px-4 sm:px-6 ${isHome ? "mx-auto max-w-6xl" : ""}`}>
         <Link href="/" className="flex shrink-0 items-baseline gap-1.5">
           <span className="text-xl font-extrabold tracking-tight">자버</span>
@@ -36,7 +40,7 @@ export function SiteHeader() {
         ) : isHome && (
           <Link
             href="/upload"
-            className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700"
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#111] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700"
           >
             시작하기 <ArrowUpRight className="size-4" />
           </Link>

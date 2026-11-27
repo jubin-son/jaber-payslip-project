@@ -6,6 +6,7 @@ import { AlertCircle, ArrowRight, Loader2, CheckCircle2, FileQuestion, FileSprea
 import { detectKind, readFile, type RawFile } from "@/lib/parser/read-file";
 import { extractFiles } from "@/lib/parser/extract";
 import { saveParseResult } from "@/lib/store";
+import { takePendingFiles } from "@/lib/pending-files";
 import { getOwner, rosterStore } from "@/lib/hr-store";
 import { setCustomLinks } from "@/lib/parser/dictionary";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,32 @@ export function UploadClient() {
     );
   }, []);
 
+  // 첫 화면의 '파일 없이 샘플로 해보기'(/upload?sample=1): 샘플 급여대장을 올린 상태로 시작한다
+  const sampleLoaded = useRef(false);
+  useEffect(() => {
+    if (sampleLoaded.current || new URLSearchParams(window.location.search).get("sample") !== "1") return;
+    sampleLoaded.current = true;
+    fetch("/samples/sample-payroll.xlsx")
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.blob();
+      })
+      .then(async (b) => {
+        await addFiles([new File([b], "샘플_급여대장_2026-11.xlsx", { type: b.type })]);
+        setNotice("샘플 급여대장을 올려 두었어요. 아래 '명세서 변환하기'를 눌러 보세요.");
+      })
+      .catch(() => setNotice("샘플 파일을 불러오지 못했어요. 급여대장 파일을 직접 올려 주세요."));
+  }, [addFiles]);
+
+  // 첫 화면에서 놓은 파일: 받아서 읽고, 문제가 없으면 '명세서 변환하기'까지 이어서 누른다
+  const autoConvert = useRef(false);
+  useEffect(() => {
+    const fromHome = takePendingFiles();
+    if (fromHome.length === 0) return;
+    autoConvert.current = true;
+    void addFiles(fromHome);
+  }, [addFiles]);
+
   const done = items.filter((i) => i.status === "done");
   const reading = items.filter((i) => i.status === "reading");
   const problems = items.filter((i) => i.status === "error" || i.status === "unsupported");
@@ -142,6 +169,14 @@ export function UploadClient() {
       setNotice("변환하다가 문제가 생겼어요. 파일을 확인하고 다시 시도해 주세요.");
     }
   }
+
+  useEffect(() => {
+    if (!autoConvert.current || converting || reading.length > 0 || items.length === 0) return;
+    // 한 번만 시도한다. 변환할 수 없는 파일이 섞였으면 목록에서 이유를 보고 직접 고르게 둔다
+    autoConvert.current = false;
+    if (canOrganize) void convert();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- convert는 지금 목록으로 돌면 된다
+  }, [items, converting, reading.length, canOrganize]);
 
   function remove(ids: Set<string>) {
     setItems((prev) => prev.filter((p) => !ids.has(p.id)));
