@@ -2,7 +2,7 @@
 // 발송 관리 > 발송하기: 발송 화면 (시연 수준). 오류가 없는 직원이 대상이 된다.
 // 실제로 알림톡·메일을 보내지는 않고, '보낸 것으로 기록'만 남긴다.
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,13 +12,22 @@ import { rosterStore, settingsStore } from "@/lib/hr-store";
 import { statementContextOf } from "@/app/payslips/payslip-card";
 import { newShareId, payloadOf, publishShares, useRemoteOpens, type PublishItem } from "@/lib/share/client";
 import { availability, CHANNEL_LABEL, defaultPick, maskEmail, maskPhone, secretNote, unsentReason, type Channel, type Pick } from "./channels";
-import { clearSent, linkIdOf, recordSent, recordShares, useSendState, type SendState } from "./send-store";
+import { cancelSchedule, clearSent, linkIdOf, recordSent, recordShares, scheduleSend, useSendState, type SendState } from "./send-store";
 
 const CHANNELS: Channel[] = ["kakao", "mail"];
 
 /** "11. 19. 14:32" */
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+
+/** 예약 시각이 되면 onFire를 부른다. 이미 지난 예약이면 바로 부른다. 화면에는 children을 그대로 그린다 */
+function ScheduleRunner({ at, onFire, children }: { at: string; onFire: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const t = setTimeout(onFire, Math.max(0, new Date(at).getTime() - Date.now()));
+    return () => clearTimeout(t);
+  }, [at, onFire]);
+  return <>{children}</>;
+}
 
 function Guide({ title, text, href, button }: { title: string; text: string; href: string; button: string }) {
   return (
@@ -47,6 +56,9 @@ export function SendClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picks, setPicks] = useState<Record<string, Pick>>({});
   const [sending, setSending] = useState(false);
+  const [mode, setMode] = useState<"now" | "later">("now");
+  const [when, setWhen] = useState("");
+  const [whenError, setWhenError] = useState<string | null>(null);
 
   if (reviewed.status === "loading") return <p className="text-muted-foreground">불러오는 중…</p>;
   if (reviewed.status === "no-file") {
@@ -101,27 +113,31 @@ export function SendClient() {
     setPicks((p) => ({ ...p, [e.id]: { ...cur, [c]: !cur[c] } }));
   }
 
-  function send() {
-    if (toSend.length === 0 || sending || !batch) return;
-    const cur = batch;
+  /** 직원별 명세서를 서버에 올리고 보낸 것으로 기록한다 (지금 발송·예약 시각 도달 모두 여기로 온다) */
+  function sendItems(items: { employeeId: string; channel: Channel }[]) {
+    if (items.length === 0 || sending) return;
     setSending(true);
     setShareNote(null);
     // 다른 기기에서도 열리게 명세서를 서버에 올린다. 이미 올린 직원은 같은 링크로 내용만 새로 덮어쓴다
     const shares = { ...(sendState?.signature === signature ? sendState.shares : undefined) };
-    const items: PublishItem[] = [...new Set(toSend.map((i) => i.employeeId))].map((employeeId) => {
-      const e = cur.employees.find((x) => x.id === employeeId)!;
+    const publish: PublishItem[] = [...new Set(items.map((i) => i.employeeId))].flatMap((employeeId) => {
+      const cur = batches.find((b) => b.employees.some((x) => x.id === employeeId));
+      const e = cur?.employees.find((x) => x.id === employeeId);
+      if (!cur || !e) return [];
       const reg = roster?.find((r) => r.memberId === e.match?.memberId);
       shares[employeeId] ??= newShareId();
-      return {
-        id: shares[employeeId],
-        employeeId,
-        payload: payloadOf(cur, e, statementContextOf(settings, roster, cur).forEmployee(e)),
-        births: [e.birthDate, reg?.birthDate],
-        phones: [e.match?.phone, reg?.phone],
-      };
+      return [
+        {
+          id: shares[employeeId],
+          employeeId,
+          payload: payloadOf(cur, e, statementContextOf(settings, roster, cur).forEmployee(e)),
+          births: [e.birthDate, reg?.birthDate],
+          phones: [e.match?.phone, reg?.phone],
+        },
+      ];
     });
     const started = Date.now();
-    publishShares(signature, items)
+    publishShares(signature, publish)
       .then((r) => {
         if (r.enabled) recordShares(signature, shares);
         else setShareNote("공유 저장소(Supabase)가 연결되지 않아서, 명세서 링크는 이 브라우저에서만 열려요.");
@@ -130,10 +146,34 @@ export function SendClient() {
       .finally(() => {
         // 시연: 실제 발송 대신 보낸 것으로 기록한다
         setTimeout(() => {
-          recordSent(signature, toSend);
+          recordSent(signature, items);
           setSending(false);
         }, Math.max(0, 900 - (Date.now() - started)));
       });
+  }
+
+  const schedule = sendState?.signature === signature ? sendState.schedule : undefined;
+
+  function reserve() {
+    const at = new Date(when);
+    if (!when || Number.isNaN(at.getTime())) return setWhenError("예약할 날짜와 시간을 골라 주세요.");
+    if (at.getTime() <= Date.now() + 10_000) return setWhenError("지금보다 뒤의 시각을 골라 주세요.");
+    setWhenError(null);
+    scheduleSend(signature, at.toISOString(), toSend);
+    setMode("now");
+  }
+
+  /** 예약 시각이 됐을 때: 예약을 지우고, 그 사이 이미 보낸 것을 뺀 나머지를 보낸다 */
+  function fireSchedule() {
+    if (!schedule) return;
+    cancelSchedule(signature);
+    sendItems(schedule.items.filter((i) => !records[i.employeeId]?.[i.channel]));
+  }
+
+  /** 이 시각 기준 'datetime-local' 입력값 (예: 2026-11-27T14:30) */
+  function localInput(ms: number) {
+    const d = new Date(ms - new Date().getTimezoneOffset() * 60000);
+    return d.toISOString().slice(0, 16);
   }
 
   return (
@@ -330,18 +370,70 @@ export function SendClient() {
           <Button variant="outline" asChild>
             <Link href="/send/history">발송 결과 보기</Link>
           </Button>
-          <Button disabled={toSend.length === 0 || sending} onClick={send}>
-            {sending ? "발송 중…" : toSend.length > 0 ? `${toSend.length}건 발송하기 (시연)` : "보낼 대상이 없어요"}
-          </Button>
+          {mode === "now" || schedule ? (
+            <>
+              {!schedule && (
+                <Button variant="outline" disabled={toSend.length === 0 || sending} onClick={() => setMode("later")}>
+                  예약 발송
+                </Button>
+              )}
+              <Button disabled={toSend.length === 0 || sending} onClick={() => sendItems(toSend)}>
+                {sending ? "발송 중…" : toSend.length > 0 ? `${toSend.length}건 발송하기 (시연)` : "보낼 대상이 없어요"}
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" onClick={() => setMode("now")}>
+              예약 그만두기
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* 예약 발송 (시연) */}
+      {schedule && (
+        <ScheduleRunner at={schedule.at} onFire={fireSchedule}>
+          <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+            <span>
+              <b>{fmtTime(schedule.at)}</b>에 {schedule.items.length}건을 보낼 예정이에요.
+            </span>
+            <span className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={sending} onClick={fireSchedule}>
+                지금 바로 보내기
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => cancelSchedule(signature)}>
+                예약 취소
+              </Button>
+            </span>
+          </div>
+        </ScheduleRunner>
+      )}
+      {!schedule && mode === "later" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-3 py-3 text-sm">
+          <label className="flex items-center gap-2">
+            <span className="font-medium">보낼 시각</span>
+            <input
+              type="datetime-local"
+              value={when}
+              onChange={(ev) => setWhen(ev.target.value)}
+              className="rounded-md border bg-background px-2 py-1"
+            />
+          </label>
+          <Button size="sm" variant="outline" onClick={() => setWhen(localInput(Date.now() + 60_000))}>
+            1분 뒤로 맞추기 (시연)
+          </Button>
+          <Button size="sm" disabled={toSend.length === 0} onClick={reserve}>
+            {toSend.length}건 예약하기
+          </Button>
+          {whenError && <span className="text-red-600">{whenError}</span>}
+        </div>
+      )}
       {shareNote && (
         <p role="status" className="text-sm text-amber-700">
           {shareNote}
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        시연이라 실제 알림톡·메일은 나가지 않아요. 발송하면 명세서가 저장소(Supabase)에 올라가서, 미리보기의 링크를 휴대폰 등 다른 기기에서 열 수 있어요.
+        시연이라 실제 알림톡·메일은 나가지 않아요. 예약 발송은 이 발송 화면을 열어 둔 동안에만 시각에 맞춰 보내져요. 발송하면 명세서가 저장소(Supabase)에 올라가서, 미리보기의 링크를 휴대폰 등 다른 기기에서 열 수 있어요.
         직원이 열면 &lsquo;열람&rsquo;으로 표시돼요.
       </p>
     </div>
