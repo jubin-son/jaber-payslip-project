@@ -268,17 +268,6 @@ export function SendClient() {
       {/* 발송: 직원이 많아도 내려가지 않게 위쪽에 둔다 */}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          {alreadySent > 0 && (
-            <>
-              <span className="text-sm text-muted-foreground">발송(시연) {alreadySent}건 기록됨</span>
-              <Button variant="ghost" size="sm" onClick={clearSent}>
-                발송·열람 기록 지우기
-              </Button>
-            </>
-          )}
-          <Button variant="outline" asChild>
-            <Link href="/send/history">발송 결과 보기</Link>
-          </Button>
           {mode === "now" || schedule ? (
             <>
               {!schedule && (
@@ -431,10 +420,23 @@ export function SendClient() {
       )}
 
       <div className="flex flex-col gap-3 border-t pt-4">
-        <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <Button variant="outline" asChild>
             <Link href="/payslips">← 명세서 변환</Link>
           </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            {alreadySent > 0 && (
+              <>
+                <span className="text-sm text-muted-foreground">발송(시연) {alreadySent}건 기록됨</span>
+                <Button variant="ghost" size="sm" onClick={clearSent}>
+                  발송·열람 기록 지우기
+                </Button>
+              </>
+            )}
+            <Button variant="outline" asChild>
+              <Link href="/send/history">발송 결과 보기</Link>
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">
         시연이라 실제 알림톡·메일은 나가지 않아요. 예약 발송은 이 발송 화면을 열어 둔 동안에만 시각에 맞춰 보내져요. 발송하면 명세서가 저장소(Supabase)에 올라가서, 미리보기의 링크를 휴대폰 등 다른 기기에서 열 수 있어요.
