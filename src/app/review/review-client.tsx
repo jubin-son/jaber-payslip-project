@@ -30,7 +30,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Lightbulb, Mail } from "lucide-react";
+import { buildInquiry, inquiryEmployees, isEmail, mailtoLink } from "@/lib/accountant-mail";
+import { companyOf, settingsStore, updateBusiness, useOwner } from "@/lib/hr-store";
 
 // ---------- 작은 도우미 ----------
 
@@ -588,7 +590,141 @@ function SuspectBanner({ batches, onPick }: { batches: PayrollBatch[]; onPick: (
           </li>
         ))}
       </ul>
+      <div className="mt-3 flex flex-col gap-2 border-t border-red-200 pt-3">
+        <p className="text-xs text-red-800/90">숫자가 왜 틀렸는지 잘 모르겠다면, 급여대장을 만들어 준 곳에 물어보세요. 문의 메일은 자동으로 써 드려요.</p>
+        <div className="flex flex-wrap gap-2">
+          {batches
+            .filter((b) => inquiryEmployees(b).length > 0)
+            .map((b) => (
+              <InquiryButton key={b.id} batch={b} />
+            ))}
+        </div>
+      </div>
     </section>
+  );
+}
+
+// ---------- 세무사 문의 메일 ----------
+
+/** 사업장(귀속월)별 '세무사에게 문의하기' 버튼과, 메일 내용을 보고 고칠 수 있는 창 */
+function InquiryButton({ batch }: { batch: PayrollBatch }) {
+  const [open, setOpen] = useState(false);
+  const settings = settingsStore.use();
+  const owner = useOwner();
+  const company = companyOf(settings, batch.companyCode);
+  const writer = company?.payrollWriter === "노무사" ? "노무사" : "세무사";
+  const office = company?.payrollOffice;
+  const n = inquiryEmployees(batch).length;
+  return (
+    <>
+      <Button type="button" size="sm" variant="outline" className="border-red-300 bg-white text-red-900 hover:bg-red-100" onClick={() => setOpen(true)}>
+        <Mail aria-hidden className="size-4" />
+        {writer}에게 문의하기 · {batch.companyName} {fmtMonth(batch.payPeriod)} ({n}명)
+      </Button>
+      {open && (
+        <InquiryDialog
+          key={batch.id}
+          batch={batch}
+          writer={writer}
+          office={office}
+          initialEmail={company?.payrollEmail ?? ""}
+          ownerName={company?.owner ?? owner?.company.owner}
+          companyCode={batch.companyCode}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function InquiryDialog({
+  batch,
+  writer,
+  office,
+  initialEmail,
+  ownerName,
+  companyCode,
+  onClose,
+}: {
+  batch: PayrollBatch;
+  writer: string;
+  office?: string;
+  initialEmail: string;
+  ownerName?: string;
+  companyCode?: string;
+  onClose: () => void;
+}) {
+  const init = buildInquiry(batch, office ? `${office} ${writer}` : writer, ownerName);
+  const [email, setEmail] = useState(initialEmail);
+  const [subject, setSubject] = useState(init.subject);
+  const [body, setBody] = useState(init.body);
+  const [note, setNote] = useState("");
+  const emailOk = isEmail(email);
+  const canSave = !!companyCode && emailOk && email.trim() !== initialEmail;
+  const box = "w-full rounded-lg border bg-white px-3 py-2 text-sm";
+
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => ev.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function openMailApp() {
+    if (canSave) saveEmail();
+    window.location.href = mailtoLink(email, subject, body);
+    setNote("메일 앱이 열리지 않으면 아래 '내용 복사'를 눌러 직접 붙여 넣어 주세요.");
+  }
+  function saveEmail() {
+    if (companyCode) updateBusiness(companyCode, (b) => ({ ...b, profile: { ...b.profile, payrollEmail: email.trim() } }));
+  }
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(`받는 사람: ${email}\n제목: ${subject}\n\n${body}`);
+      setNote("복사했어요. 메일에 붙여 넣어 보내세요.");
+    } catch {
+      setNote("복사하지 못했어요. 아래 내용을 직접 선택해서 복사해 주세요.");
+    }
+  }
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={`${writer}에게 문의 메일 쓰기`} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col gap-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(ev) => ev.stopPropagation()}>
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-bold">{writer}에게 문의 메일 보내기</h2>
+          <p className="text-sm text-muted-foreground">
+            어떤 직원의 어느 숫자가 이상한지 자동으로 적어 뒀어요. 내용을 읽어 보고 필요하면 고친 뒤 보내세요.
+            직원 이름과 금액만 들어 있고, 주민번호·연락처는 들어 있지 않아요.
+          </p>
+        </div>
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+          받는 사람 ({office ? `${office} ` : ""}{writer} 메일)
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="예: tax@office.co.kr" className={box} />
+          {email && !emailOk && <span className="text-red-600">메일 주소 모양이 아니에요. 다시 확인해 주세요.</span>}
+          {canSave && <span className="text-muted-foreground">보내기를 누르면 이 사업장의 {writer} 메일로 저장해 둬요. 다음부터는 자동으로 들어가요.</span>}
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+          제목
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} className={box} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+          내용
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={14} className={`${box} leading-relaxed`} />
+        </label>
+        {note && <p role="status" className="text-sm text-emerald-700">{note}</p>}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            닫기
+          </Button>
+          <Button type="button" variant="outline" onClick={copy}>
+            내용 복사
+          </Button>
+          <Button type="button" disabled={!emailOk} onClick={openMailApp}>
+            내 메일 앱으로 보내기
+          </Button>
+        </div>
+        {!emailOk && <p className="-mt-2 text-right text-xs text-muted-foreground">받는 사람 메일을 넣으면 보낼 수 있어요. 메일 주소를 모르면 &lsquo;내용 복사&rsquo;로 카카오톡 등에 붙여 넣어도 돼요.</p>}
+      </div>
+    </div>
   );
 }
 
