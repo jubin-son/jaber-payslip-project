@@ -160,32 +160,57 @@ function Kpis({ cur, prev }: { cur: MonthStat; prev?: MonthStat }) {
   );
 }
 
-/** 월별 실지급액 막대 추이 (선택한 달이 진하게) */
+/** 연도를 골라 1월~12월 막대로 보여 준다 (기록이 없는 달은 빈 칸). 선택한 달이 진하게 */
+function MonthBars({ points, curPeriod, height = "h-48" }: { points: { period: string; value: number; title: string }[]; curPeriod?: string; height?: string }) {
+  const years = [...new Set(points.map((p) => p.period.slice(0, 4)))].sort();
+  const [picked, setPicked] = useState<string | null>(null);
+  const year = picked && years.includes(picked) ? picked : (curPeriod?.slice(0, 4) ?? years[years.length - 1]);
+  const max = Math.max(...points.filter((p) => p.period.startsWith(year)).map((p) => p.value), 1);
+  return (
+    <div className="flex flex-col gap-3">
+      {years.length > 1 && (
+        <div className="flex gap-1 text-sm">
+          {years.map((y) => (
+            <Button key={y} size="sm" variant={y === year ? "default" : "outline"} onClick={() => setPicked(y)}>
+              {y}년
+            </Button>
+          ))}
+        </div>
+      )}
+      <ul className={`flex ${height} items-end gap-1.5 overflow-x-auto pb-1 sm:gap-2`}>
+        {Array.from({ length: 12 }, (_, i) => {
+          const period = `${year}-${String(i + 1).padStart(2, "0")}`;
+          const pt = points.find((p) => p.period === period);
+          const on = period === curPeriod;
+          return (
+            <li key={period} className="flex h-full min-w-9 flex-1 flex-col items-center justify-end gap-1">
+              {pt && <span className="text-[10px] tabular-nums text-muted-foreground">{Math.round(pt.value / 10000).toLocaleString("ko-KR")}만</span>}
+              <div
+                className={`w-full max-w-12 rounded-t-md ${pt ? (on ? "bg-indigo-600" : "bg-indigo-300") : "bg-neutral-100"}`}
+                style={{ height: pt ? `${Math.max((pt.value / max) * 75, 2)}%` : "2%" }}
+                title={pt?.title ?? `${i + 1}월 기록 없음`}
+              />
+              <span className={`text-xs ${on ? "font-bold" : "text-muted-foreground"}`}>{i + 1}월</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function Trend({ stats, curPeriod }: { stats: MonthStat[]; curPeriod: string }) {
-  const max = Math.max(...stats.map((s) => s.netPay), 1);
   return (
     <Card>
       <CardHeader>
         <CardTitle>월별 실지급액 추이</CardTitle>
-        <CardDescription>달마다 직원에게 실제로 나간 금액의 합계예요.</CardDescription>
+        <CardDescription>달마다 직원에게 실제로 나간 금액의 합계예요. 연도를 골라 1월~12월을 볼 수 있어요.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ul className="flex h-48 items-end gap-3 overflow-x-auto pb-1">
-          {stats.map((s) => {
-            const on = s.period === curPeriod;
-            return (
-              <li key={s.period} className="flex h-full min-w-14 flex-1 flex-col items-center justify-end gap-1">
-                <span className="text-[11px] tabular-nums text-muted-foreground">{Math.round(s.netPay / 10000).toLocaleString("ko-KR")}만</span>
-                <div
-                  className={`w-full max-w-16 rounded-t-md ${on ? "bg-indigo-600" : "bg-indigo-200"}`}
-                  style={{ height: `${Math.max((s.netPay / max) * 75, 2)}%` }}
-                  title={`${periodText(s.period)} ${won(s.netPay)} · ${s.headcount}명`}
-                />
-                <span className={`text-xs ${on ? "font-bold" : "text-muted-foreground"}`}>{Number(s.period.slice(5))}월</span>
-              </li>
-            );
-          })}
-        </ul>
+        <MonthBars
+          curPeriod={curPeriod}
+          points={stats.map((s) => ({ period: s.period, value: s.netPay, title: `${periodText(s.period)} ${won(s.netPay)} · ${s.headcount}명` }))}
+        />
       </CardContent>
     </Card>
   );
@@ -378,7 +403,7 @@ function EmployeeView({ histories, empKey, onPick }: { histories: EmployeeHistor
 }
 
 function EmployeeDetail({ h }: { h: EmployeeHistory }) {
-  const max = Math.max(...h.months.map((m) => m.netPay), 1);
+  const multiYear = new Set(h.months.map((m) => m.period.slice(0, 4))).size > 1;
   const cats = (pick: (m: EmployeeHistory["months"][number]) => Record<string, number>) => [...new Set(h.months.flatMap((m) => Object.keys(pick(m))))];
   const earnCats = cats((m) => m.earnings);
   const dedCats = cats((m) => m.deductions);
@@ -404,15 +429,10 @@ function EmployeeDetail({ h }: { h: EmployeeHistory }) {
           <CardTitle className="text-xl">{h.name} · 월별 실지급액</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="flex h-40 items-end gap-3 overflow-x-auto">
-            {h.months.map((m) => (
-              <li key={m.period} className="flex h-full min-w-14 flex-1 flex-col items-center justify-end gap-1">
-                <span className="text-[11px] tabular-nums text-muted-foreground">{Math.round(m.netPay / 10000).toLocaleString("ko-KR")}만</span>
-                <div className="w-full max-w-16 rounded-t-md bg-indigo-500" style={{ height: `${Math.max((m.netPay / max) * 70, 2)}%` }} title={`${periodText(m.period)} ${won(m.netPay)}`} />
-                <span className="text-xs text-muted-foreground">{Number(m.period.slice(5))}월</span>
-              </li>
-            ))}
-          </ul>
+          <MonthBars
+            height="h-40"
+            points={h.months.map((m) => ({ period: m.period, value: m.netPay, title: `${periodText(m.period)} ${won(m.netPay)}` }))}
+          />
         </CardContent>
       </Card>
       <Card>
@@ -426,7 +446,7 @@ function EmployeeDetail({ h }: { h: EmployeeHistory }) {
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th className="py-2 font-medium">항목</th>
                 {h.months.map((m) => (
-                  <th key={m.period} className="py-2 text-right font-medium">{periodText(m.period).replace(/^\d{4}년 /, "")}</th>
+                  <th key={m.period} className="py-2 text-right font-medium">{multiYear ? `${m.period.slice(2, 4)}년 ` : ""}{Number(m.period.slice(5))}월</th>
                 ))}
               </tr>
             </thead>
