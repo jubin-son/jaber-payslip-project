@@ -61,10 +61,13 @@ const TABLE: [string[], ColumnRole][] = [
   [["고용보험", "ei"], D("고용보험")],
   [["소득세", "갑근세", "근로소득세", "inctax"], D("소득세")],
   [["지방소득세", "주민세", "지방세", "localtax"], D("지방소득세")],
+  // 연말정산 정산분: 소득세·지방소득세 항목으로 읽는다(환급이면 음수). 이름은 원본 그대로 남아 명세서에 따로 보인다
+  [["연말정산소득세", "정산소득세", "연말정산갑근세", "연말정산", "연말정산분소득세"], D("소득세")],
+  [["연말정산지방소득세", "정산지방소득세", "연말정산주민세", "연말정산지방세"], D("지방소득세")],
   [["가불", "가불금", "건강정산", "요양정산", "기타공제", "학자금", "경조회비", "otherded"], D("기타공제")],
 
   // 합계
-  [["지급액계", "지급합계", "지급총액", "총지급액", "급여총액", "임금총액", "총액", "gross", "지급액"], { kind: "totalEarnings" }],
+  [["지급액계", "지급계", "지급합계", "지급총액", "총지급액", "급여총액", "임금총액", "총액", "gross", "지급액"], { kind: "totalEarnings" }],
   [["공제액계", "공제합계", "공제총액", "총공제액", "공제계", "totalded"], { kind: "totalDeductions" }],
   [["차인지급액", "실지급액", "실지급", "차감지급액", "실수령액", "실수령", "입금액", "netpay"], { kind: "netPay" }],
 
@@ -131,8 +134,10 @@ export function builtinRoleOf(label: string): ColumnRole | undefined {
   return MAP.get(normalizeLabel(label));
 }
 
+export type GroupKind = "earning" | "deduction" | "employer" | "other";
+
 /** 여러 열 위에 걸친 묶음 머리글 */
-const GROUP_WORDS: Record<string, "earning" | "deduction" | "other"> = {
+const GROUP_WORDS: Record<string, GroupKind> = {
   지급: "earning",
   지급내역: "earning",
   지급항목: "earning",
@@ -144,8 +149,17 @@ const GROUP_WORDS: Record<string, "earning" | "deduction" | "other"> = {
   기본사항: "other",
 };
 
-export function groupOf(label: unknown): "earning" | "deduction" | "other" | undefined {
-  return GROUP_WORDS[normalizeLabel(label)];
+export function groupOf(label: unknown): GroupKind | undefined {
+  const n = normalizeLabel(label);
+  if (!n) return undefined;
+  if (GROUP_WORDS[n]) return GROUP_WORDS[n];
+  if (lookupRole(label)) return undefined; // '지급합계'처럼 그 자체가 열 이름이면 묶음이 아니다
+  // 노무사 임금대장: "사업주 부담분", "회사부담 4대보험" 아래 열은 직원 공제가 아니다
+  if (/(사업주|회사|사용자|기관|법인)부담/.test(n)) return "employer";
+  // "근로자 공제내역", "지급 내역(과세)" 같은 변형
+  if (/공제(내역|항목)$/.test(n)) return "deduction";
+  if (/지급(내역|항목)$/.test(n)) return "earning";
+  return undefined;
 }
 
 export const isAmountRole = (r: ColumnRole | undefined) =>
