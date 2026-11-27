@@ -23,7 +23,15 @@ const MENU: Item[] = [
     numbered: true,
     children: STEPS.map((s) => ({ href: s.href, label: s.label, on: (p: string) => stepOf(p)?.href === s.href })),
   },
-  { href: "/records", label: "급여명세서 관리", on: under("/records") },
+  {
+    href: "/records",
+    label: "급여명세서 관리",
+    on: under("/records", "/dashboard"),
+    children: [
+      { href: "/records", label: "월별 명세서 기록", on: (p: string) => under("/records")(p) },
+      { href: "/dashboard", label: "월별 대시보드", on: (p: string) => under("/dashboard")(p) },
+    ],
+  },
   {
     href: "/send",
     label: "발송 관리",
