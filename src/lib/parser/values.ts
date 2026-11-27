@@ -109,14 +109,26 @@ export function companyFromFileName(fileName: string): string | undefined {
   return /[가-힣]/.test(cleaned) ? cleaned.split(" ")[0] : undefined;
 }
 
-/** 직원 이름처럼 보이는지. 합계·소계·구분 줄은 제외 */
+/** 직원 이름처럼 보이는지. 합계·소계·구분 줄은 제외. "김자버(점장)"처럼 괄호 설명이 붙어도 이름으로 본다 */
 export function looksLikeName(v: CellValue): v is string {
   if (typeof v !== "string") return false;
   const s = v.trim();
   if (!s || s.length > 30) return false;
   if (/(합계|소계|총계|^계$|합\s*계)/.test(s)) return false;
   if (/^\d+(일|시간)?$/.test(s) || /^\d+:\d+$/.test(s)) return false;
-  return /^[가-힣]{2,5}$/.test(s.replace(/\s/g, "")) || /^[A-Za-z][A-Za-z .'-]+$/.test(s);
+  const bare = splitName(s).name;
+  return /^[가-힣]{2,5}$/.test(bare) || /^[A-Za-z][A-Za-z .'-]+$/.test(bare);
+}
+
+/**
+ * 이름 칸 정리: "김자버(점장)" → 이름 "김자버" + 괄호 "점장", "이 하늘" → "이하늘".
+ * 한글 이름 사이 공백은 지우고, 영문 이름(NGUYEN THI HOA)의 공백은 둔다.
+ */
+export function splitName(raw: string): { name: string; note?: string } {
+  const note = raw.match(/[(（]\s*([^)）]+?)\s*[)）]/)?.[1];
+  let name = raw.replace(/[(（][^)）]*[)）]/g, "").trim();
+  if (/^[가-힣\s]+$/.test(name)) name = name.replace(/\s+/g, "");
+  return note ? { name, note } : { name };
 }
 
 /** 생년월일·입사일: "1990.03.12", "1990-3-12", "19900312" → "1990-03-12". 읽을 수 없는 표기("900312" 등)는 원본 그대로 */

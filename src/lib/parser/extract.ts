@@ -2,7 +2,7 @@
 // 금액은 항상 원본 칸에서 그대로 가져온다(AI가 숫자를 만들지 않는다). 칸 주소는 source에 남긴다.
 import type { EmployeePay, Issue, PayItem, PayrollBatch } from "@/types/payroll";
 import { cellAddress, type CellValue, type RawFile, type RawSheet } from "./read-file";
-import { groupOf, isAmountRole, lookupRole, normalizeLabel, type ColumnRole } from "./dictionary";
+import { groupOf, isAmountRole, lookupRole, normalizeLabel, type ColumnRole, type GroupKind } from "./dictionary";
 import {
   companyFromFileName,
   findCompany,
@@ -12,6 +12,7 @@ import {
   findUnit,
   findYear,
   looksLikeName,
+  splitName,
   parseAmount,
   personDate,
   parseQuantity,
@@ -94,7 +95,9 @@ type Header = {
   nameCol: number;
   labels: (string | null)[];
   labelAddr: string[];
-  groups: ("earning" | "deduction" | "other" | undefined)[];
+  groups: (GroupKind | undefined)[];
+  /** 직원 한 명이 두 줄(윗줄 지급, 아랫줄 공제). labels는 윗줄 열 뒤에 아랫줄 열이 이어진다 */
+  paired?: boolean;
 };
 
 function countMapped(g: Grid, r: number): number {
@@ -109,12 +112,26 @@ function buildHeader(g: Grid, r: number, allowItemAsName: boolean): Header | und
   let subMapped = 0;
   if (below !== undefined) for (let c = 0; c < g.colCount; c++) if (lookupRole(g.get(below, c))) subMapped++;
   const useSub = below !== undefined && subMapped >= 3;
+  // 두 줄이 모두 항목 이름으로 꽉 찬 머리글(윗줄 '기본급·식대…', 아랫줄 '국민연금·건강보험…')은
+  // 직원 한 명도 두 줄(윗줄 지급, 아랫줄 공제)로 적힌 양식이다. 세무 프로그램 출력에서 흔하다
+  let stackedCols = 0;
+  if (useSub) for (let c = 0; c < g.colCount; c++) if (isAmountRole(lookupRole(g.get(r, c))) && isAmountRole(lookupRole(g.get(below!, c)))) stackedCols++;
+  const stacked = stackedCols >= 2;
 
   const labels: (string | null)[] = [];
   const labelAddr: string[] = [];
+  const pairLabels: (string | null)[] = [];
+  const pairAddr: string[] = [];
   for (let c = 0; c < g.colCount; c++) {
     const top = g.get(r, c);
     const sub = useSub ? g.get(below!, c) : null;
+    if (stacked) {
+      labels.push(top === null ? null : str(top));
+      labelAddr.push(g.addr(r, c));
+      pairLabels.push(sub === null ? null : str(sub));
+      pairAddr.push(g.addr(below!, c));
+      continue;
+    }
     const takeSub = useSub && typeof sub === "string" && sub.trim() && (top === null || groupOf(top) !== undefined);
     labels.push(takeSub ? str(sub) : top === null ? null : str(top));
     labelAddr.push(takeSub ? g.addr(below!, c) : g.addr(r, c));
@@ -137,7 +154,33 @@ function buildHeader(g: Grid, r: number, allowItemAsName: boolean): Header | und
       groups[c] = cur;
     }
   }
+  if (stacked) {
+    // 두 줄을 이어 붙인 한 줄로 다룬다: 윗줄 열 뒤에 아랫줄 열이 이어진다
+    return {
+      row: r,
+      subRow: below,
+      nameCol,
+      labels: [...labels, ...pairLabels],
+      labelAddr: [...labelAddr, ...pairAddr],
+      groups: [...groups, ...new Array(g.colCount).fill(undefined)],
+      paired: true,
+    };
+  }
   return { row: r, subRow: useSub ? below : undefined, nameCol, labels, labelAddr, groups };
+}
+
+/** 두 줄 1인 양식: 이름이 있는 줄과 그 아랫줄을 이어 붙인 가상의 표 (한 명 = 한 줄) */
+function pairedRows(g: Grid, h: Header, start: number, end: number): Grid {
+  const starts: number[] = [];
+  for (let r = start; r < end; r++) if (looksLikeName(g.get(r, h.nameCol))) starts.push(r++);
+  const W = g.colCount;
+  return {
+    name: g.name,
+    rowCount: starts.length,
+    colCount: W * 2,
+    get: (r, c) => (c < W ? g.get(starts[r], c) : g.get(starts[r] + 1, c - W)),
+    addr: (r, c) => (c < W ? g.addr(starts[r], c) : g.addr(starts[r] + 1, c - W)),
+  };
 }
 
 function hasGroupWord(g: Grid, r: number): boolean {
@@ -163,7 +206,10 @@ function findHeaders(g: Grid, allowItemAsName = false): Header[] {
 // ---------- 열 분류 ----------
 
 function mapColumns(h: Header): { roles: (ColumnRole | undefined)[]; mappings: ColumnMapping[]; unmapped: string[] } {
-  const roles: (ColumnRole | undefined)[] = h.labels.map((l) => (l ? lookupRole(l) : undefined));
+  // 사업주 부담분 묶음 아래 열(국민연금 등)은 이름이 같아도 직원 공제가 아니라서 읽지 않는다
+  const roles: (ColumnRole | undefined)[] = h.labels.map((l, c) =>
+    h.groups[c] === "employer" ? { kind: "ignore" } : l ? lookupRole(l) : undefined,
+  );
   const firstEarning = roles.findIndex((r) => r?.kind === "earning");
   const totalE = roles.findIndex((r) => r?.kind === "totalEarnings");
   const totalD = roles.findIndex((r) => r?.kind === "totalDeductions");
@@ -219,7 +265,11 @@ function readRow(g: Grid, r: number, h: Header, roles: (ColumnRole | undefined)[
   let anyAmount = false;
   const earnings: PayItem[] = [];
   const deductions: PayItem[] = [];
-  const e: EmployeePay = { id: "", name: name.trim(), earnings, deductions, totalEarnings: 0, totalDeductions: 0, netPay: 0, issues: [] };
+  // "김자버(점장)" → 이름 김자버, 괄호 속 '점장'은 직위 칸이 비어 있을 때 직위로 쓴다
+  const { name: cleanName, note } = splitName(name);
+  const e: EmployeePay = { id: "", name: cleanName, earnings, deductions, totalEarnings: 0, totalDeductions: 0, netPay: 0, issues: [] };
+  if (cleanName !== name.trim())
+    e.issues.push({ level: "info", code: "LOW_CONFIDENCE", message: `이름 칸의 '${name.trim()}'을(를) '${cleanName}'(으)로 읽었어요.`, field: "name" });
   const flags = { e: false, d: false, n: false };
   let period: string | undefined;
   let payDate: string | undefined;
@@ -304,6 +354,7 @@ function readRow(g: Grid, r: number, h: Header, roles: (ColumnRole | undefined)[
   });
   if (!anyAmount) return undefined;
 
+  if (note && !e.position) e.position = note;
   if (ctx.employmentHint && !e.employmentType) e.employmentType = ctx.employmentHint;
   if (earnings.some((i) => i.category === "강사료")) e.employmentType = "강사";
   if (Object.keys(work).length) e.workInfo = work;
@@ -362,7 +413,30 @@ class BatchCollector {
       b.sourceSheet += `, ${sheet}`;
     }
     if (!b.payDate && payDate) b.payDate = payDate;
+    // 같은 달 다른 시트(급여·상여 시트 분리 등)에 같은 직원이 또 나오면 명세서 한 장으로 합친다.
+    // 같은 시트 안의 같은 이름(동명이인)은 합치지 않는다
+    const same = b.employees.find((x) => x.name === e.name && x.earnings.concat(x.deductions).every((i) => i.source?.sheet !== sheet));
+    if (same) {
+      const tag = (i: PayItem) => (same.earnings.concat(same.deductions).some((o) => o.label === i.label) ? { ...i, label: `${i.label}(${sheet})` } : i);
+      same.earnings.push(...e.earnings.map(tag));
+      same.deductions.push(...e.deductions.map(tag));
+      same.totalEarnings += e.totalEarnings;
+      same.totalDeductions += e.totalDeductions;
+      same.netPay += e.netPay;
+      same.issues.push(...e.issues.filter((i) => !same.issues.some((o) => o.code === i.code && o.message === i.message)));
+      // 안내는 배치에 한 번만 (스키마의 IssueCode를 늘리지 않으려고 LOW_CONFIDENCE + field로 구분)
+      const msg = `같은 달 '${b.sourceSheet}' 시트에 같은 직원이 있어 명세서 한 장으로 합쳤어요.`;
+      const prev = b.issues.find((i) => i.field === "mergedSheets");
+      if (prev) prev.message = msg;
+      else b.issues.push({ level: "info", code: "LOW_CONFIDENCE", message: msg, field: "mergedSheets" });
+      return;
+    }
     b.employees.push(e);
+  }
+  /** 이 표가 들어간 배치에 안내를 붙인다 (직원을 하나도 못 읽은 표면 붙일 곳이 없어 넘어간다) */
+  warn(meta: Meta, issue: Issue) {
+    const company = meta.company ?? companyFromFileName(this.file.fileName) ?? this.file.fileName.replace(/\.[^.]+$/, "");
+    this.map.get(`${company}|${meta.period ?? ""}`)?.issues.push(issue);
   }
   batches(): PayrollBatch[] {
     return [...this.map.values()];
@@ -430,14 +504,31 @@ function parseTableSheet(
     const fullCtx: Ctx = { ...ctx, unitMul: tableMeta.unit === "천원" ? 1000 : 1, employmentHint: hint };
 
     let count = 0;
-    for (let r = start; r < end; r++) {
-      const res = readRow(g, r, h, roles, howMap, fullCtx, r);
-      if (!res) continue;
+    const dropped: string[] = [];
+    // 두 줄 1인 양식이면 한 명의 두 줄을 이어 붙인 표를 읽는다
+    const rg = h.paired ? pairedRows(g, h, start, end) : g;
+    const [from, to] = h.paired ? [0, rg.rowCount] : [start, end];
+    for (let r = from; r < to; r++) {
+      const res = readRow(rg, r, h, roles, howMap, fullCtx, r);
+      if (!res) {
+        // 금액이 있는데 이름이 사람 이름처럼 안 보여서 뺀 줄은 조용히 버리지 않고 알린다
+        const nm = rg.get(r, h.nameCol);
+        const label = typeof nm === "string" ? nm.trim() : nm === null ? "" : String(nm);
+        const hasMoney = roles.some((role, c) => isAmountRole(role) && typeof parseAmount(rg.get(r, c)) === "number" && parseAmount(rg.get(r, c)) !== 0);
+        if (label && hasMoney && !/(합계|소계|총계|^계$|합\s*계|평균)/.test(label)) dropped.push(label);
+        continue;
+      }
       const e = res.employee;
       e.issues.push(...checkEmployee(e, { hasTotalEarnings: res.flags.e, hasTotalDeductions: res.flags.d, hasNet: res.flags.n }));
       out.add(tableMeta, g.name, e, res.period, res.payDate);
       count++;
     }
+    if (dropped.length)
+      out.warn(tableMeta, {
+        level: "warning",
+        code: "LOW_CONFIDENCE",
+        message: `금액이 있지만 직원 이름으로 보이지 않아 뺀 줄이 있어요: ${dropped.slice(0, 5).join(", ")}${dropped.length > 5 ? ` 외 ${dropped.length - 5}줄` : ""}. 직원이면 원본 이름 칸을 확인해 주세요.`,
+      });
     const title = ti === 0 ? topTexts[0] : titleTexts[titleTexts.length - 1];
     // 뒤집힌 표는 제목·주석 칸도 머리글 줄에 섞여 들어온다
     const realUnmapped = unmapped.filter((u) => u.length <= 15 && !u.startsWith("※"));

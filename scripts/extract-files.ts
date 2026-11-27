@@ -1,6 +1,6 @@
 // 급여대장 폴더를 2단계 정리까지 돌려 보는 확인용 스크립트.
 // 사용법: npx tsx scripts/extract-files.ts <급여대장 폴더> [--json]
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readBytesAsync } from "../src/lib/parser/read-file";
 import { extractFiles } from "../src/lib/parser/extract";
@@ -8,7 +8,10 @@ import { extractFiles } from "../src/lib/parser/extract";
 async function main() {
   const dir = process.argv[2];
   if (!dir) throw new Error("폴더 경로를 넣어 주세요");
-  const names = readdirSync(dir).filter((n) => !n.startsWith(".")).sort();
+  // 하위 폴더(예: 월별 급여대장/)는 건너뛴다. 그 폴더는 따로 넣어 돌린다
+  const names = readdirSync(dir)
+    .filter((n) => !n.startsWith(".") && statSync(join(dir, n)).isFile())
+    .sort();
   const files = await Promise.all(names.map((n) => readBytesAsync(n, new Uint8Array(readFileSync(join(dir, n))))));
   const res = extractFiles(files);
   if (process.argv.includes("--json")) {
