@@ -12,13 +12,11 @@ import {
   companiesOf,
   compareCategories,
   compareEmployees,
-  delta,
   employeeHistories,
   type EmployeeHistory,
   pctText,
   signedWon,
   summarizeMonths,
-  type Delta,
   type MonthStat,
 } from "@/lib/monthly-stats";
 
@@ -65,7 +63,7 @@ export function DashboardClient() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex gap-1 rounded-xl bg-neutral-100 p-1 text-sm font-semibold sm:w-fit" role="tablist">
-        {([["all", "전체 현황"], ["employee", "직원별 급여 변화"]] as const).map(([k, label]) => (
+        {([["all", "이번 달 요약"], ["employee", "직원별 월급 변화"]] as const).map(([k, label]) => (
           <button
             key={k}
             role="tab"
@@ -109,10 +107,20 @@ export function DashboardClient() {
         <EmployeeView histories={employeeHistories(archive, sel || undefined)} empKey={empKey} onPick={setEmpKey} />
       ) : (
       <>
-      <Kpis cur={cur} prev={prev} />
+      <Summary cur={cur} prev={prev} />
       <Trend stats={stats} curPeriod={cur.period} />
-      {prev ? <Compare cur={cur} prev={prev} /> : <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">다음 달 명세서를 변환하면 지난달과 비교한 변동이 여기에 나와요.</CardContent></Card>}
-      {!sel && Object.keys(cur.byCompany).length > 1 && <Companies cur={cur} prev={prev} />}
+      {prev ? <Highlights cur={cur} prev={prev} /> : <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">다음 달 명세서를 변환하면 지난달과 비교한 변동이 여기에 나와요.</CardContent></Card>}
+      {(prev || (!sel && Object.keys(cur.byCompany).length > 1)) && (
+        <details className="group rounded-xl border bg-white">
+          <summary className="cursor-pointer select-none px-5 py-4 text-sm font-semibold text-neutral-600 hover:text-neutral-900">
+            자세한 표 보기 (항목별·직원별·사업장별)
+          </summary>
+          <div className="flex flex-col gap-6 border-t bg-neutral-50 p-4">
+            {prev && <Compare cur={cur} prev={prev} />}
+            {!sel && Object.keys(cur.byCompany).length > 1 && <Companies cur={cur} prev={prev} />}
+          </div>
+        </details>
+      )}
       </>
       )}
 
@@ -123,40 +131,89 @@ export function DashboardClient() {
   );
 }
 
-function Change({ d, suffix = "" }: { d: Delta; suffix?: string }) {
+/** 큰 금액은 "1,070만 원"처럼 읽기 쉽게 */
+const man = (n: number) => {
+  const v = Math.abs(Math.round(n));
+  if (v < 10000) return `${v.toLocaleString("ko-KR")}원`;
+  let m = Math.floor(v / 10000);
+  let c = Math.round((v % 10000) / 1000); // 천원 단위로 반올림
+  if (c === 10) {
+    m += 1;
+    c = 0;
+  }
+  return `${m.toLocaleString("ko-KR")}만${c ? ` ${c}천` : ""} 원`;
+};
+/** "지난달보다 242만 원 늘었어요" / "지난달과 같아요". base는 비교 대상 이름 (기본: 지난달) */
+const moreLess = (diff: number, base = "지난달") =>
+  diff > 0 ? `${base}보다 ${man(diff)} 늘었어요` : diff < 0 ? `${base}보다 ${man(diff)} 줄었어요` : `${base}과 같아요`;
+
+/** 맨 위 한눈에 보기: 한 문장 + 큰 숫자 3개 */
+function Summary({ cur, prev }: { cur: MonthStat; prev?: MonthStat }) {
+  const items = [
+    { label: "이번 달 직원", value: `${cur.headcount}명`, note: prev ? (cur.headcount === prev.headcount ? "지난달과 같아요" : `지난달보다 ${Math.abs(cur.headcount - prev.headcount)}명 ${cur.headcount > prev.headcount ? "늘었어요" : "줄었어요"}`) : "" },
+    { label: "총 급여 (세금·보험 떼기 전)", value: won(cur.totalEarnings), note: prev ? moreLess(cur.totalEarnings - prev.totalEarnings) : "" },
+    { label: "직원이 실제로 받는 돈", value: won(cur.netPay), note: prev ? moreLess(cur.netPay - prev.netPay) : "" },
+  ];
   return (
-    <span className={`text-xs font-medium tabular-nums ${tone(d.diff)}`}>
-      {d.diff === 0 ? "변동 없음" : `${signedWon(d.diff).replace("원", suffix || "원")} (${pctText(d.pct)})`}
-    </span>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-xl leading-snug sm:text-2xl">
+          {periodText(cur.period)}에는 직원 {cur.headcount}명에게 {man(cur.netPay)}을 지급해요.
+        </CardTitle>
+        <CardDescription className="text-base">
+          {prev ? `${moreLess(cur.netPay - prev.netPay, periodText(prev.period))}.` : "지난달 기록이 쌓이면 비교해서 보여드려요."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 sm:grid-cols-3">
+        {items.map((it) => (
+          <div key={it.label} className="rounded-xl bg-neutral-50 p-4">
+            <p className="text-sm text-muted-foreground">{it.label}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">{it.value}</p>
+            {it.note && <p className="mt-1 text-sm text-neutral-600">{it.note}</p>}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
-function Kpis({ cur, prev }: { cur: MonthStat; prev?: MonthStat }) {
-  const items = [
-    { label: "명세서 수(인원)", v: cur.headcount, p: prev?.headcount, fmt: (n: number) => `${n}명`, suffix: "명" },
-    { label: "지급 합계", v: cur.totalEarnings, p: prev?.totalEarnings, fmt: won },
-    { label: "공제 합계", v: cur.totalDeductions, p: prev?.totalDeductions, fmt: won },
-    { label: "실지급액 합계", v: cur.netPay, p: prev?.netPay, fmt: won },
-    { label: "1인 평균 실지급액", v: cur.avgNet, p: prev?.avgNet, fmt: won },
-  ];
+/** 지난달과 달라진 점을 문장으로 (확인할 것만 짧게) */
+function Highlights({ cur, prev }: { cur: MonthStat; prev: MonthStat }) {
+  const people = compareEmployees(cur, prev);
+  const news = people.filter((p) => p.kind === "new");
+  const left = people.filter((p) => p.kind === "left");
+  const changed = people.filter((p) => p.kind === "changed");
+  const top = compareCategories(cur.earnings, prev.earnings).find((r) => r.diff !== 0);
+  const names = (l: typeof people) => l.slice(0, 3).map((p) => p.name).join(", ") + (l.length > 3 ? ` 외 ${l.length - 3}명` : "");
+  const lines: { icon: string; text: string }[] = [];
+  if (news.length) lines.push({ icon: "🟢", text: `새로 들어온 직원 ${news.length}명 (${names(news)})` });
+  if (left.length) lines.push({ icon: "⚪", text: `지난달엔 있었는데 이번 달엔 없는 직원 ${left.length}명 (${names(left)})` });
+  if (changed.length)
+    lines.push({
+      icon: "🟡",
+      text: `월급이 달라진 직원 ${changed.length}명 — ${changed.slice(0, 3).map((p) => `${p.name} ${p.diff > 0 ? "+" : "-"}${man(p.diff)}`).join(", ")}${changed.length > 3 ? " 외" : ""}`,
+    });
+  if (top) lines.push({ icon: "📊", text: `지급 항목 중 '${top.category}'이(가) 가장 크게 ${top.diff > 0 ? "늘었어요" : "줄었어요"} (${top.diff > 0 ? "+" : "-"}${man(top.diff)})` });
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {items.map((it) => (
-        <Card key={it.label} className="gap-1 py-4">
-          <CardHeader className="gap-1 px-4">
-            <CardDescription>{it.label}</CardDescription>
-            <CardTitle className="text-lg tabular-nums">{it.fmt(it.v)}</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4">
-            {it.p === undefined ? (
-              <span className="text-xs text-muted-foreground">전월 없음</span>
-            ) : (
-              <Change d={delta(it.v, it.p)} suffix={it.suffix} />
-            )}
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>{periodText(prev.period)}과 달라진 점</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {lines.length === 0 ? (
+          <p className="text-base">✅ 달라진 점이 없어요. 직원 수와 월급이 지난달과 모두 같아요.</p>
+        ) : (
+          <ul className="flex flex-col gap-3 text-base">
+            {lines.map((l) => (
+              <li key={l.text} className="flex gap-2">
+                <span aria-hidden>{l.icon}</span>
+                <span>{l.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
