@@ -155,6 +155,7 @@ function AddWorkplaceForm({ owner, onDone, onCancel }: { owner: Owner; onDone: (
     payrollWriter: main?.payrollWriter ?? "세무사",
     payrollOffice: main?.payrollOffice ?? "",
     payrollEmail: main?.payrollEmail ?? "",
+    payrollPhone: main?.payrollPhone ?? "",
   });
   const set = <K extends keyof CompanyProfile>(k: K, v: CompanyProfile[K]) => setDraft((d) => ({ ...d, [k]: v }));
 
@@ -180,6 +181,7 @@ function AddWorkplaceForm({ owner, onDone, onCancel }: { owner: Owner; onDone: (
       ownerPhone: draft.ownerPhone?.trim() || undefined,
       payrollOffice: draft.payrollWriter === "사장" ? undefined : draft.payrollOffice?.trim() || undefined,
       payrollEmail: draft.payrollWriter === "사장" ? undefined : draft.payrollEmail?.trim() || undefined,
+      payrollPhone: draft.payrollWriter === "사장" ? undefined : draft.payrollPhone?.trim() || undefined,
     };
     addWorkplace({ company });
     onDone(company.name);
@@ -251,6 +253,17 @@ function AddWorkplaceForm({ owner, onDone, onCancel }: { owner: Owner; onDone: (
                 className={`${box} disabled:bg-neutral-100`}
               />
             </label>
+            <label className={field}>
+              사무소 연락처 (문자·전화용)
+              <input
+                type="tel"
+                value={draft.payrollPhone ?? ""}
+                disabled={draft.payrollWriter === "사장"}
+                placeholder="예: 02-000-0000 또는 010-0000-0000"
+                onChange={(e) => set("payrollPhone", e.target.value)}
+                className={`${box} disabled:bg-neutral-100`}
+              />
+            </label>
           </>
         )}
       </div>
@@ -311,6 +324,7 @@ function ProfileForm({ company }: { company: JaberCompany }) {
     payrollWriter: company.payrollWriter,
     payrollOffice: company.payrollOffice,
     payrollEmail: company.payrollEmail,
+    payrollPhone: company.payrollPhone,
   }));
   const [saved, setSaved] = useState(false);
   const changed = (Object.keys(draft) as (keyof CompanyProfile)[]).some((k) => (draft[k] ?? "") !== (company[k] ?? ""));
@@ -378,6 +392,17 @@ function ProfileForm({ company }: { company: JaberCompany }) {
               disabled={draft.payrollWriter === "사장"}
               placeholder="예: tax@office.co.kr"
               onChange={(e) => set("payrollEmail", e.target.value)}
+              className={`${box} disabled:bg-neutral-100`}
+            />
+          </label>
+          <label className={field}>
+            사무소 연락처 (문자·전화용)
+            <input
+              type="tel"
+              value={draft.payrollPhone ?? ""}
+              disabled={draft.payrollWriter === "사장"}
+              placeholder="예: 02-000-0000 또는 010-0000-0000"
+              onChange={(e) => set("payrollPhone", e.target.value)}
               className={`${box} disabled:bg-neutral-100`}
             />
           </label>

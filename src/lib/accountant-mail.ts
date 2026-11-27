@@ -60,3 +60,10 @@ export function mailtoLink(to: string, subject: string, body: string): string {
 }
 
 export const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+
+/** 문자 앱을 여는 링크 (휴대폰에서 열린다) */
+export function smsLink(phone: string, body: string): string {
+  return `sms:${phone.replace(/[^\d+]/g, "")}?body=${encodeURIComponent(body)}`;
+}
+export const telLink = (phone: string) => `tel:${phone.replace(/[^\d+]/g, "")}`;
+export const isPhone = (s: string) => s.replace(/\D/g, "").length >= 8;
