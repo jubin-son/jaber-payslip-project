@@ -30,7 +30,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Lightbulb, Mail } from "lucide-react";
+import { buildInquiry, inquiryEmployees, isEmail, isPhone, mailtoLink, smsLink, telLink } from "@/lib/accountant-mail";
+import { companyOf, settingsStore, updateBusiness, useOwner } from "@/lib/hr-store";
 
 // ---------- 작은 도우미 ----------
 
@@ -588,7 +590,177 @@ function SuspectBanner({ batches, onPick }: { batches: PayrollBatch[]; onPick: (
           </li>
         ))}
       </ul>
+      <div className="mt-3 flex flex-col gap-2 border-t border-red-200 pt-3">
+        <p className="text-xs text-red-800/90">숫자가 왜 틀렸는지 잘 모르겠다면, 급여대장을 만들어 준 곳에 물어보세요. 문의 메일은 자동으로 써 드려요.</p>
+        <div className="flex flex-wrap gap-2">
+          {batches
+            .filter((b) => inquiryEmployees(b).length > 0)
+            .map((b) => (
+              <InquiryButton key={b.id} batch={b} />
+            ))}
+        </div>
+      </div>
     </section>
+  );
+}
+
+// ---------- 세무사 문의 메일 ----------
+
+/** 사업장(귀속월)별 '세무사에게 문의하기' 버튼과, 메일 내용을 보고 고칠 수 있는 창 */
+function InquiryButton({ batch }: { batch: PayrollBatch }) {
+  const [open, setOpen] = useState(false);
+  const settings = settingsStore.use();
+  const owner = useOwner();
+  const company = companyOf(settings, batch.companyCode);
+  const writer = company?.payrollWriter === "노무사" ? "노무사" : "세무사";
+  const office = company?.payrollOffice;
+  const n = inquiryEmployees(batch).length;
+  return (
+    <>
+      <Button type="button" size="sm" variant="outline" className="border-red-300 bg-white text-red-900 hover:bg-red-100" onClick={() => setOpen(true)}>
+        <Mail aria-hidden className="size-4" />
+        {writer}에게 문의하기 · {batch.companyName} {fmtMonth(batch.payPeriod)} ({n}명)
+      </Button>
+      {open && (
+        <InquiryDialog
+          key={batch.id}
+          batch={batch}
+          writer={writer}
+          office={office}
+          initialEmail={company?.payrollEmail ?? ""}
+          initialPhone={company?.payrollPhone ?? ""}
+          ownerName={company?.owner ?? owner?.company.owner}
+          companyCode={batch.companyCode}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function InquiryDialog({
+  batch,
+  writer,
+  office,
+  initialEmail,
+  initialPhone,
+  ownerName,
+  companyCode,
+  onClose,
+}: {
+  batch: PayrollBatch;
+  writer: string;
+  office?: string;
+  initialEmail: string;
+  initialPhone: string;
+  ownerName?: string;
+  companyCode?: string;
+  onClose: () => void;
+}) {
+  const init = buildInquiry(batch, office ? `${office} ${writer}` : writer, ownerName);
+  const [email, setEmail] = useState(initialEmail);
+  const [phone, setPhone] = useState(initialPhone);
+  const [subject, setSubject] = useState(init.subject);
+  const [body, setBody] = useState(init.body);
+  const [note, setNote] = useState("");
+  const emailOk = isEmail(email);
+  const phoneOk = isPhone(phone);
+  const canSave = !!companyCode && ((emailOk && email.trim() !== initialEmail) || (phoneOk && phone.trim() !== initialPhone));
+  const box = "w-full rounded-lg border bg-white px-3 py-2 text-sm";
+
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => ev.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function openMailApp() {
+    saveContact();
+    window.location.href = mailtoLink(email, subject, body);
+    setNote("메일 앱이 열리지 않으면 아래 '내용 복사'를 눌러 직접 붙여 넣어 주세요.");
+  }
+  function openSms() {
+    saveContact();
+    window.location.href = smsLink(phone, `${subject}\n\n${body}`);
+    setNote("컴퓨터에서는 문자 앱이 안 열릴 수 있어요. 그럴 땐 '내용 복사'를 눌러 카카오톡·문자에 붙여 넣어 보내세요.");
+  }
+  /** 입력한 메일·연락처를 이 사업장의 사무소 정보로 저장해 둔다 (다음부터 자동으로 들어간다) */
+  function saveContact() {
+    if (!canSave || !companyCode) return;
+    updateBusiness(companyCode, (b) => ({
+      ...b,
+      profile: {
+        ...b.profile,
+        ...(emailOk ? { payrollEmail: email.trim() } : {}),
+        ...(phoneOk ? { payrollPhone: phone.trim() } : {}),
+      },
+    }));
+  }
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(`받는 사람: ${email || phone}\n제목: ${subject}\n\n${body}`);
+      setNote("복사했어요. 메일에 붙여 넣어 보내세요.");
+    } catch {
+      setNote("복사하지 못했어요. 아래 내용을 직접 선택해서 복사해 주세요.");
+    }
+  }
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={`${writer}에게 문의 보내기`} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col gap-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(ev) => ev.stopPropagation()}>
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-bold">{writer}에게 문의 보내기</h2>
+          <p className="text-sm text-muted-foreground">
+            어떤 직원의 어느 숫자가 이상한지 자동으로 적어 뒀어요. 내용을 읽어 보고 필요하면 고친 뒤 보내세요.
+            직원 이름과 금액만 들어 있고, 주민번호·연락처는 들어 있지 않아요.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            메일 주소 ({office ? `${office} ` : ""}{writer})
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="예: tax@office.co.kr" className={box} />
+            {email && !emailOk && <span className="text-red-600">메일 주소 모양이 아니에요.</span>}
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            연락처 (문자·전화)
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="예: 010-0000-0000" className={box} />
+            {phone && !phoneOk && <span className="text-red-600">전화번호를 다시 확인해 주세요.</span>}
+          </label>
+        </div>
+        <p className="-mt-2 text-xs text-muted-foreground">
+          둘 중 편한 쪽 하나만 있어도 돼요.{canSave && ` 보내면 이 사업장의 ${writer} 연락처로 저장해 둬서 다음부터 자동으로 들어가요.`}
+        </p>
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+          제목
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} className={box} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+          내용
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={14} className={`${box} leading-relaxed`} />
+        </label>
+        {note && <p role="status" className="text-sm text-emerald-700">{note}</p>}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            닫기
+          </Button>
+          <Button type="button" variant="outline" onClick={copy}>
+            내용 복사
+          </Button>
+          {phoneOk && (
+            <Button type="button" variant="outline" asChild>
+              <a href={telLink(phone)}>전화 걸기</a>
+            </Button>
+          )}
+          <Button type="button" variant="outline" disabled={!phoneOk} onClick={openSms}>
+            문자로 보내기
+          </Button>
+          <Button type="button" disabled={!emailOk} onClick={openMailApp}>
+            메일로 보내기
+          </Button>
+        </div>
+        {!emailOk && !phoneOk && <p className="-mt-2 text-right text-xs text-muted-foreground">메일 주소나 연락처를 넣으면 보낼 수 있어요. 모르면 &lsquo;내용 복사&rsquo;로 카카오톡 등에 붙여 넣어도 돼요.</p>}
+      </div>
+    </div>
   );
 }
 

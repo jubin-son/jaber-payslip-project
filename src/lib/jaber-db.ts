@@ -16,6 +16,8 @@ export type JaberCompany = {
   ownerPhone?: string; // 대표자 휴대전화
   payrollWriter: "세무사" | "노무사" | "사장"; // 급여대장을 만드는 주체
   payrollOffice?: string; // 급여대장 작성 사무소(사장이 직접 만들면 없음)
+  payrollEmail?: string; // 급여대장 작성 사무소 메일 (오류 문의 메일 받는 사람)
+  payrollPhone?: string; // 급여대장 작성 사무소 연락처 (문자·전화로 문의할 때)
   joinedAt: string; // 자버 가입일 "yyyy-mm-dd"
 };
 
