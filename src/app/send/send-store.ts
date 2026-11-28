@@ -10,6 +10,9 @@ export type SendRecord = { at: string; count?: number };
 /** 직원이 명세서 링크를 처음 연 시각 */
 export type OpenRecord = { at: string };
 
+/** 예약 발송(시연): 정한 시각이 되면 발송 화면이 열려 있을 때 자동으로 보낸다 */
+export type Schedule = { at: string; items: { employeeId: string; channel: Channel }[] };
+
 export type SendState = {
   /** 어떤 파일의 발송 결과인지 (3단계 확인 결과의 signature) */
   signature: string;
@@ -19,6 +22,8 @@ export type SendState = {
   opens: Record<string, OpenRecord>;
   /** 직원 id → 다른 기기에서 여는 명세서 링크 id (서버에 올렸을 때만) */
   shares?: Record<string, string>;
+  /** 예약 발송. 없으면 예약이 없는 것 */
+  schedule?: Schedule;
 };
 
 const KEY = "jaber.send.v1";
@@ -63,7 +68,7 @@ export function useSendState(): SendState | null {
 function base(signature: string): SendState {
   const cur = read();
   return cur && cur.signature === signature
-    ? { signature, records: structuredClone(cur.records), opens: structuredClone(cur.opens ?? {}), shares: { ...cur.shares } }
+    ? { signature, records: structuredClone(cur.records), opens: structuredClone(cur.opens ?? {}), shares: { ...cur.shares }, schedule: cur.schedule }
     : { signature, records: {}, opens: {}, shares: {} };
 }
 
@@ -95,6 +100,20 @@ export function recordOpened(signature: string, employeeId: string) {
   const next = base(signature);
   if (next.opens[employeeId]) return;
   next.opens[employeeId] = { at: new Date().toISOString() };
+  commit(next);
+}
+
+/** 예약 발송을 건다. 이미 예약이 있으면 새 예약으로 바꾼다 */
+export function scheduleSend(signature: string, at: string, items: Schedule["items"]) {
+  const next = base(signature);
+  next.schedule = { at, items };
+  commit(next);
+}
+
+/** 예약을 없앤다 (취소하거나, 시각이 되어 발송을 시작할 때) */
+export function cancelSchedule(signature: string) {
+  const next = base(signature);
+  next.schedule = undefined;
   commit(next);
 }
 
